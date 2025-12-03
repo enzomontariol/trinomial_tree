@@ -3,5 +3,10 @@ name = "trinomial-tree"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
-dependencies = []
+requires-python = ">=3.13"
+dependencies = [
+    "networkx>=3.6",
+    "plotly>=6.5.0",
+    "scipy>=1.16.3",
+    "streamlit>=1.51.0",
+]
