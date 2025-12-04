@@ -1,11 +1,11 @@
-from .module_graphique import TreeGraph
-from .module_pricing_analysis import (
+from .tree_graph import TreeGraph
+from .pricing_analysis import (
     BsComparison,
     StrikeComparison,
     VolComparison,
     RateComparison,
 )
-from .module_grecques_empiriques import GrecquesEmpiriques
+from .empirical_greeks import EmpiricalGreeks
 
 
 __all__ = [
@@ -14,5 +14,5 @@ __all__ = [
     "StrikeComparison",
     "VolComparison",
     "RateComparison",
-    "GrecquesEmpiriques",
+    "EmpiricalGreeks",
 ]
