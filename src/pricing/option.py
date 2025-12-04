@@ -1,19 +1,16 @@
-# %% Imports
 import datetime as dt
 from dataclasses import dataclass
 
-from src.pricing.barrier import Barriere
-
-# %% Classes
+from src.pricing.barrier import Barrier
 
 
 @dataclass
 class Option:
-    """Classe utilisée pour représenter une option et ses paramètres."""
+    """Class used to represent an option and its parameters."""
 
-    maturite: dt.date
-    prix_exercice: float
-    barriere: Barriere | None = None
-    americaine: bool = False
-    call: bool = True
-    date_pricing: dt.date = dt.date.today()
+    maturity: dt.date
+    strike_price: float
+    barrier: Barrier | None = None
+    is_american: bool = False
+    is_call: bool = True
+    pricing_date: dt.date = dt.date.today()

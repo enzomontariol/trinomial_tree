@@ -11,21 +11,13 @@ warnings.filterwarnings("ignore")
 
 sys.setrecursionlimit(1000000000)
 
-# from market import MarketData
-# from option import Option
-# from module_barriere import Barriere
-# from module_Tree_Node import Tree
-
-# # import des fonctions Black Scholes
-# from module_black_scholes import BlackAndScholes
-
 from ..pricing.market import MarketData
 from ..pricing.option import Option
-from ..pricing.barrier import Barriere
+from ..pricing.barrier import Barrier
 from ..pricing.tree_node import Tree
 
-# import des fonctions Black Scholes
-from ..pricing.black_scholes import BlackAndScholes
+# import Black Scholes functions
+from ..pricing.black_scholes import BlackScholes
 
 # %% Classes
 
@@ -34,27 +26,27 @@ class BsComparison:
     def __init__(self, max_cpu: int, step_list: list, epsilon_values: list):
         self.max_cpu = max_cpu
 
-        # Definissons les deux listes
+        # Define the two lists
         self.step_list = step_list
         self.epsilon_values = epsilon_values
 
-        # Instanciation des objets requis
-        self.barriere = Barriere(0, None, None)
-        self.donnee_marche = MarketData(
+        # Instantiation of required objects
+        self.barrier = Barrier(0, None, None)
+        self.market_data = MarketData(
             dt.date(2024, 1, 13), 100, 0.20, 0.02, 0.02, dt.date.today(), 0
         )
         self.option = Option(
-            dt.date(2024, 10, 23), 101, self.barriere, False, True, dt.date(2024, 1, 13)
+            dt.date(2024, 10, 23), 101, self.barrier, False, True, dt.date(2024, 1, 13)
         )
 
-        # Calcul du prix B&S
-        self.Tree_bs = Tree(100, self.donnee_marche, self.option)
-        self.bs_price = BlackAndScholes(self.Tree_bs).bs_pricer()
+        # Calculation of B&S price
+        self.tree_bs = Tree(100, self.market_data, self.option)
+        self.bs_price = BlackScholes(self.tree_bs).price()
 
-        # DataFrame pour stocker les résultats
+        # DataFrame to store results
         self.results_df = pd.DataFrame()
 
-        # Executions des calculs en parallèle pour chaque niveau d'epsilon
+        # Execution of calculations in parallel for each epsilon level
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.max_cpu
         ) as outer_executor:
@@ -63,7 +55,7 @@ class BsComparison:
                 for epsilon in self.epsilon_values
             }
 
-            # Résultats
+            # Results
             for future in concurrent.futures.as_completed(futures):
                 epsilon = futures[future]
                 try:
@@ -73,23 +65,23 @@ class BsComparison:
                         [self.results_df, result_df], ignore_index=True
                     )
                 except Exception as exc:
-                    print(f"Erreur à epsilon {epsilon} : {exc}")
+                    print(f"Error at epsilon {epsilon} : {exc}")
 
     def calculate_for_epsilon(self, epsilon):
-        liste_prix_step_comparison = []
-        liste_temps_step_comparison = []
-        liste_diff_bs = []
-        liste_time_gap_bs = []
+        list_price_step_comparison = []
+        list_time_step_comparison = []
+        list_diff_bs = []
+        list_time_gap_bs = []
 
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.max_cpu
         ) as inner_executor:
             futures = {
                 inner_executor.submit(
-                    self.calcule_pas,
+                    self.calculate_step,
                     step,
                     self.bs_price,
-                    self.donnee_marche,
+                    self.market_data,
                     self.option,
                     epsilon,
                 ): step
@@ -98,36 +90,40 @@ class BsComparison:
 
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
-                liste_prix_step_comparison.append(result[1])
-                liste_temps_step_comparison.append(result[2])
-                liste_diff_bs.append(result[3])
-                liste_time_gap_bs.append(result[4])
+                list_price_step_comparison.append(result[1])
+                list_time_step_comparison.append(result[2])
+                list_diff_bs.append(result[3])
+                list_time_gap_bs.append(result[4])
 
         return pd.DataFrame(
             {
                 "Nombre de pas": self.step_list,
-                "Prix Tree trinomial": liste_prix_step_comparison,
-                "Temps pricing": liste_temps_step_comparison,
-                "Différence B&S": liste_diff_bs,
-                "Différence * nb pas": liste_time_gap_bs,
+                "Prix Tree trinomial": list_price_step_comparison,
+                "Temps pricing": list_time_step_comparison,
+                "Différence B&S": list_diff_bs,
+                "Différence * nb pas": list_time_gap_bs,
             }
         )
 
     @staticmethod
-    def calcule_pas(step, bs_price, donnee_marche, option, epsilon):
+    def calculate_step(step, bs_price, market_data, option, epsilon):
         now = time.time()
-        Tree_step_comparison = Tree(step, donnee_marche, option, epsilon=epsilon)
-        Tree_step_comparison.pricer_Tree()
-        price_Tree_step_comparison = Tree_step_comparison.prix_option
+        tree_step_comparison = Tree(step, market_data, option, epsilon=epsilon)
+        tree_step_comparison.price_option()
+        price_tree_step_comparison = tree_step_comparison.option_price
         then = time.time()
         pricing_time = then - now
         print(f"Step: {step}, Epsilon: {epsilon}, Pricing Time: {pricing_time:.4f}s")
+
+        if price_tree_step_comparison is None:
+            raise ValueError("Option price not calculated")
+
         return (
             step,
-            price_Tree_step_comparison,
+            price_tree_step_comparison,
             pricing_time,
-            price_Tree_step_comparison - bs_price,
-            price_Tree_step_comparison * step,
+            price_tree_step_comparison - bs_price,
+            price_tree_step_comparison * step,
         )
 
     def bs_graph_temps_pas(self):
@@ -315,8 +311,8 @@ class StrikeComparison:
         self.step_list = step_list
         self.strike_values = strike_values
 
-        self.barriere = Barriere(0, None, None)
-        self.donnee_marche = MarketData(
+        self.barrier = Barrier(0, None, None)
+        self.market_data = MarketData(
             dt.date(2024, 1, 13), 100, 0.20, 0.02, 0.02, dt.date.today(), 0
         )
 
@@ -344,65 +340,69 @@ class StrikeComparison:
     def calculate_for_strike(self, strike):
         option = Option(
             dt.date(2024, 10, 23),
-            prix_exercice=strike,
-            barriere=self.barriere,
-            americaine=False,
-            call=True,
-            date_pricing=dt.date(2024, 1, 13),
+            strike_price=strike,
+            barrier=self.barrier,
+            is_american=False,
+            is_call=True,
+            pricing_date=dt.date(2024, 1, 13),
         )
 
-        self.Tree_bs = Tree(100, self.donnee_marche, option)
-        self.bs_price = BlackAndScholes(self.Tree_bs).bs_pricer()
+        self.tree_bs = Tree(100, self.market_data, option)
+        self.bs_price = BlackScholes(self.tree_bs).price()
 
-        liste_prix_step_comparison = []
-        liste_temps_step_comparison = []
-        liste_diff_bs = []
-        liste_time_gap_bs = []
+        list_price_step_comparison = []
+        list_time_step_comparison = []
+        list_diff_bs = []
+        list_time_gap_bs = []
 
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.max_cpu
         ) as inner_executor:
             futures = {
                 inner_executor.submit(
-                    self.calcule_pas, step, self.bs_price, self.donnee_marche, option
+                    self.calculate_step, step, self.bs_price, self.market_data, option
                 ): step
                 for step in self.step_list
             }
 
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
-                liste_prix_step_comparison.append(result[1])
-                liste_temps_step_comparison.append(result[2])
-                liste_diff_bs.append(result[3])
-                liste_time_gap_bs.append(result[4])
+                list_price_step_comparison.append(result[1])
+                list_time_step_comparison.append(result[2])
+                list_diff_bs.append(result[3])
+                list_time_gap_bs.append(result[4])
 
         return pd.DataFrame(
             {
                 "Nombre de pas": self.step_list,
-                "Prix Tree trinomial": liste_prix_step_comparison,
-                "Temps pricing": liste_temps_step_comparison,
-                "Différence B&S": liste_diff_bs,
-                "Différence * nb pas": liste_time_gap_bs,
+                "Prix Tree trinomial": list_price_step_comparison,
+                "Temps pricing": list_time_step_comparison,
+                "Différence B&S": list_diff_bs,
+                "Différence * nb pas": list_time_gap_bs,
             }
         )
 
     @staticmethod
-    def calcule_pas(step, bs_price, donnee_marche, option):
+    def calculate_step(step, bs_price, market_data, option):
         now = time.time()
-        Tree_step_comparison = Tree(step, donnee_marche, option)
-        Tree_step_comparison.pricer_Tree()
-        price_Tree_step_comparison = Tree_step_comparison.prix_option
+        tree_step_comparison = Tree(step, market_data, option)
+        tree_step_comparison.price_option()
+        price_tree_step_comparison = tree_step_comparison.option_price
         then = time.time()
         pricing_time = then - now
         print(
-            f"Strike: {option.prix_exercice}, Prix option : {price_Tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
+            f"Strike: {option.strike_price}, Prix option : {price_tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
         )
+
+        if price_tree_step_comparison is None:
+            raise ValueError("Option price not calculated")
+
         return (
             step,
-            price_Tree_step_comparison,
+            price_tree_step_comparison,
             pricing_time,
-            price_Tree_step_comparison - bs_price,
-            price_Tree_step_comparison * step,
+            price_tree_step_comparison - bs_price,
+            price_tree_step_comparison * step,
         )
 
     def graph_strike_temps_pas(self):
@@ -438,14 +438,14 @@ class VolComparison:
         self.step_list = step_list
         self.vol_values = vol_values
 
-        self.barriere = Barriere(0, None, None)
+        self.barrier = Barrier(0, None, None)
         self.option = Option(
             dt.date(2024, 10, 23),
-            prix_exercice=101,
-            barriere=self.barriere,
-            americaine=False,
-            call=True,
-            date_pricing=dt.date(2024, 1, 13),
+            strike_price=101,
+            barrier=self.barrier,
+            is_american=False,
+            is_call=True,
+            pricing_date=dt.date(2024, 1, 13),
         )
 
         self.results_df = pd.DataFrame()
@@ -470,62 +470,66 @@ class VolComparison:
                     print(f"Error at vol {vol}: {exc}")
 
     def calculate_for_vol(self, vol):
-        donnee_marche = MarketData(
+        market_data = MarketData(
             dt.date(2024, 1, 13), 100, vol, 0.02, 0.02, dt.date.today(), 0
         )
 
-        self.Tree_bs = Tree(100, donnee_marche, self.option)
-        self.bs_price = BlackAndScholes(self.Tree_bs).bs_pricer()
+        self.tree_bs = Tree(100, market_data, self.option)
+        self.bs_price = BlackScholes(self.tree_bs).price()
 
-        liste_prix_step_comparison = []
-        liste_temps_step_comparison = []
-        liste_diff_bs = []
-        liste_time_gap_bs = []
+        list_price_step_comparison = []
+        list_time_step_comparison = []
+        list_diff_bs = []
+        list_time_gap_bs = []
 
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.max_cpu
         ) as inner_executor:
             futures = {
                 inner_executor.submit(
-                    self.calcule_pas, step, self.bs_price, donnee_marche, self.option
+                    self.calculate_step, step, self.bs_price, market_data, self.option
                 ): step
                 for step in self.step_list
             }
 
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
-                liste_prix_step_comparison.append(result[1])
-                liste_temps_step_comparison.append(result[2])
-                liste_diff_bs.append(result[3])
-                liste_time_gap_bs.append(result[4])
+                list_price_step_comparison.append(result[1])
+                list_time_step_comparison.append(result[2])
+                list_diff_bs.append(result[3])
+                list_time_gap_bs.append(result[4])
 
         return pd.DataFrame(
             {
                 "Nombre de pas": self.step_list,
-                "Prix Tree trinomial": liste_prix_step_comparison,
-                "Temps pricing": liste_temps_step_comparison,
-                "Différence B&S": liste_diff_bs,
-                "Différence * nb pas": liste_time_gap_bs,
+                "Prix Tree trinomial": list_price_step_comparison,
+                "Temps pricing": list_time_step_comparison,
+                "Différence B&S": list_diff_bs,
+                "Différence * nb pas": list_time_gap_bs,
             }
         )
 
     @staticmethod
-    def calcule_pas(step, bs_price, donnee_marche, option):
+    def calculate_step(step, bs_price, market_data, option):
         now = time.time()
-        Tree_step_comparison = Tree(step, donnee_marche, option)
-        Tree_step_comparison.pricer_Tree()
-        price_Tree_step_comparison = Tree_step_comparison.prix_option
+        tree_step_comparison = Tree(step, market_data, option)
+        tree_step_comparison.price_option()
+        price_tree_step_comparison = tree_step_comparison.option_price
         then = time.time()
         pricing_time = then - now
         print(
-            f"Vol: {donnee_marche.volatilite}, Prix option : {price_Tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
+            f"Vol: {market_data.volatility}, Prix option : {price_tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
         )
+
+        if price_tree_step_comparison is None:
+            raise ValueError("Option price not calculated")
+
         return (
             step,
-            price_Tree_step_comparison,
+            price_tree_step_comparison,
             pricing_time,
-            price_Tree_step_comparison - bs_price,
-            price_Tree_step_comparison * step,
+            price_tree_step_comparison - bs_price,
+            price_tree_step_comparison * step,
         )
 
     def graph_vol_temps_pas(self):
@@ -561,14 +565,14 @@ class RateComparison:
         self.step_list = step_list
         self.rate_values = rate_values
 
-        self.barriere = Barriere(0, None, None)
+        self.barrier = Barrier(0, None, None)
         self.option = Option(
             dt.date(2024, 10, 23),
-            prix_exercice=101,
-            barriere=self.barriere,
-            americaine=False,
-            call=True,
-            date_pricing=dt.date(2024, 1, 13),
+            strike_price=101,
+            barrier=self.barrier,
+            is_american=False,
+            is_call=True,
+            pricing_date=dt.date(2024, 1, 13),
         )
 
         self.results_df = pd.DataFrame()
@@ -593,62 +597,66 @@ class RateComparison:
                     print(f"Error at rate {rate}: {exc}")
 
     def calculate_for_rate(self, rate):
-        donnee_marche = MarketData(
+        market_data = MarketData(
             dt.date(2024, 1, 13), 100, 0.2, rate, rate, dt.date.today(), 0
         )
 
-        self.Tree_bs = Tree(100, donnee_marche, self.option)
-        self.bs_price = BlackAndScholes(self.Tree_bs).bs_pricer()
+        self.tree_bs = Tree(100, market_data, self.option)
+        self.bs_price = BlackScholes(self.tree_bs).price()
 
-        liste_prix_step_comparison = []
-        liste_temps_step_comparison = []
-        liste_diff_bs = []
-        liste_time_gap_bs = []
+        list_price_step_comparison = []
+        list_time_step_comparison = []
+        list_diff_bs = []
+        list_time_gap_bs = []
 
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=self.max_cpu
         ) as inner_executor:
             futures = {
                 inner_executor.submit(
-                    self.calcule_pas, step, self.bs_price, donnee_marche, self.option
+                    self.calculate_step, step, self.bs_price, market_data, self.option
                 ): step
                 for step in self.step_list
             }
 
             for future in concurrent.futures.as_completed(futures):
                 result = future.result()
-                liste_prix_step_comparison.append(result[1])
-                liste_temps_step_comparison.append(result[2])
-                liste_diff_bs.append(result[3])
-                liste_time_gap_bs.append(result[4])
+                list_price_step_comparison.append(result[1])
+                list_time_step_comparison.append(result[2])
+                list_diff_bs.append(result[3])
+                list_time_gap_bs.append(result[4])
 
         return pd.DataFrame(
             {
                 "Nombre de pas": self.step_list,
-                "Prix Tree trinomial": liste_prix_step_comparison,
-                "Temps pricing": liste_temps_step_comparison,
-                "Différence B&S": liste_diff_bs,
-                "Différence * nb pas": liste_time_gap_bs,
+                "Prix Tree trinomial": list_price_step_comparison,
+                "Temps pricing": list_time_step_comparison,
+                "Différence B&S": list_diff_bs,
+                "Différence * nb pas": list_time_gap_bs,
             }
         )
 
     @staticmethod
-    def calcule_pas(step, bs_price, donnee_marche, option):
+    def calculate_step(step, bs_price, market_data, option):
         now = time.time()
-        Tree_step_comparison = Tree(step, donnee_marche, option)
-        Tree_step_comparison.pricer_Tree()
-        price_Tree_step_comparison = Tree_step_comparison.prix_option
+        tree_step_comparison = Tree(step, market_data, option)
+        tree_step_comparison.price_option()
+        price_tree_step_comparison = tree_step_comparison.option_price
         then = time.time()
         pricing_time = then - now
         print(
-            f"Taux d'intérêt: {donnee_marche.taux_interet}, Prix option : {price_Tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
+            f"Taux d'intérêt: {market_data.interest_rate}, Prix option : {price_tree_step_comparison}, Pricing Time: {pricing_time:.4f}s"
         )
+
+        if price_tree_step_comparison is None:
+            raise ValueError("Option price not calculated")
+
         return (
             step,
-            price_Tree_step_comparison,
+            price_tree_step_comparison,
             pricing_time,
-            price_Tree_step_comparison - bs_price,
-            price_Tree_step_comparison * step,
+            price_tree_step_comparison - bs_price,
+            price_tree_step_comparison * step,
         )
 
     def graph_rate_temps_pas(self):

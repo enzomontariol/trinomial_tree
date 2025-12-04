@@ -1,470 +1,482 @@
-# %% Imports
 from __future__ import annotations
 
 import numpy as np
 
 from src.pricing.market import MarketData
 from src.pricing.option import Option
-from src.pricing.enums import ConventionBaseCalendaire, TypeBarriere, DirectionBarriere
+from src.pricing.enums import CalendarBaseConvention, BarrierType, BarrierDirection
 
-# %%Constantes
 
-somme_proba = 1
+sum_proba = 1
 min_payoff = 0
-prix_min_sj = 0  # on part du principe que le prix du sous-jacent ne peut être négatif (ce qui dans le cas d'un actif purement financier sera à priori toujours vrai)
-epsilon = 1e-15  # notre seuil de pruning par défaut
+min_spot_price = 0  # we assume that the underlying price cannot be negative (which in the case of a purely financial asset will a priori always be true)
+epsilon = 1e-15  # our default pruning threshold
 
-# %% Classes
 
 
 class Tree:
     def __init__(
         self,
-        nb_pas: int,
-        donnee_marche: MarketData,
+        num_steps: int,
+        market_data: MarketData,
         option: Option,
-        convention_base_calendaire: ConventionBaseCalendaire = ConventionBaseCalendaire._365.value,
-        parametre_alpha: float = 3,
+        calendar_base_convention: int = CalendarBaseConvention._365.value,
+        alpha_parameter: float = 3,
         pruning: bool = True,
         epsilon: float = epsilon,
     ) -> None:
-        """Initialisation de la classe
+        """Initialization of the class
 
         Args:
-            nb_pas (float): le nombre de pas dans notre modèle
-            donnee_marche (MarketData): Classe utilisée pour représenter les données de marché.
-            option (Option): Classe utilisée pour représenter une option et ses paramètres.
-            convention_base_calendaire (ConventionBaseCalendaire, optional): la base calendaire que nous utiliserons pour nos calculs. Défaut ConventionBaseCalendaire._365.value.
-            pruning (bool, optional): si l'on va ou non faire du "pruning". Défaut True.
+            num_steps (float): the number of steps in our model
+            market_data (MarketData): Class used to represent market data.
+            option (Option): Class used to represent an option and its parameters.
+            calendar_base_convention (CalendarBaseConvention, optional): the calendar base we will use for our calculations. Default CalendarBaseConvention._365.value.
+            pruning (bool, optional): whether or not to do "pruning". Default True.
         """
-        self.nb_pas = nb_pas
-        self.donnee_marche = donnee_marche
+        self.num_steps = num_steps
+        self.market_data = market_data
         self.option = option
-        self.convention_base_calendaire = convention_base_calendaire
-        self.parametre_alpha = parametre_alpha
+        self.calendar_base_convention = calendar_base_convention
+        self.alpha_parameter = alpha_parameter
         self.pruning = pruning
         self.epsilon = epsilon
-        self.delta_t = self.__calcul_delta_t()
-        self.facteur_capitalisation = self.__calcul_facteur_capitalisation()
-        self.facteur_actualisation = self.__calcul_facteur_actualisation()
-        self.position_div = self.__calcul_position_div()
-        self.alpha = self.__calcul_alpha()
-        self.racine = None
-        self.prix_option = None
+        self.delta_t = self._calculate_delta_t()
+        self.capitalization_factor = self._calculate_capitalization_factor()
+        self.discount_factor = self._calculate_discount_factor()
+        self.div_position = self._calculate_div_position()
+        self.alpha = self._calculate_alpha()
+        self.root: Node | None = None
+        self.option_price: float | None = None
 
-    def get_temps(self) -> float:
-        """Renvoie le temps à maturité exprimé en nombre d'année .
+    def get_time_to_maturity(self) -> float:
+        """Returns the time to maturity expressed in number of years.
 
         Returns:
-            float: temps à maturité en nombre d'année
+            float: time to maturity in number of years
         """
         return (
-            self.option.maturite - self.option.date_pricing
-        ).days / self.convention_base_calendaire
+            self.option.maturity - self.option.pricing_date
+        ).days / self.calendar_base_convention
 
-    def __calcul_delta_t(self) -> float:
-        """Permet de calculer l'intervalle de temps de référence qui sera utilisée dans notre modèle.
+    def _calculate_delta_t(self) -> float:
+        """Calculates the reference time interval that will be used in our model.
 
         Returns:
-            float: l'intervalle de temps delta_t
+            float: the time interval delta_t
         """
-        return self.get_temps() / self.nb_pas
+        return self.get_time_to_maturity() / self.num_steps
 
-    def __calcul_facteur_capitalisation(self) -> float:
-        """Permet de calculer le facteur de capitalisation que nous utiliserons par la suite
+    def _calculate_capitalization_factor(self) -> float:
+        """Calculates the capitalization factor that we will use later
 
         Returns:
-            float: un facteur de capitalisation à appliquer à chaque dt.
+            float: a capitalization factor to apply at each dt.
         """
-        return np.exp(self.donnee_marche.taux_interet * self.delta_t)
+        return np.exp(self.market_data.interest_rate * self.delta_t)
 
-    def __calcul_facteur_actualisation(self) -> float:
-        """Permet de calculer le facteur d'actualisation que nous utiliserons par la suite
-
+    def _calculate_discount_factor(self) -> float:
+        """Calculates the discount factor that we will use later
 
         Returns:
-            float: un facteur d'actualisation à appliquer à chaque dt.
+            float: a discount factor to apply at each dt.
         """
-        return np.exp(-self.donnee_marche.taux_actualisation * self.delta_t)
+        return np.exp(-self.market_data.discount_rate * self.delta_t)
 
-    def __calcul_alpha(self) -> float:
-        """Fonction nous permettant de calculer alpha, que nous utiliserons dans l'Tree.
+    def _calculate_alpha(self) -> float:
+        """Function allowing us to calculate alpha, which we will use in the Tree.
 
         Returns:
-            float: Nous renvoie le coefficient alpha
+            float: Returns the alpha coefficient
         """
         alpha = np.exp(
-            self.donnee_marche.volatilite
-            * np.sqrt(self.parametre_alpha)
+            self.market_data.volatility
+            * np.sqrt(self.alpha_parameter)
             * np.sqrt(self.delta_t)
         )
-
         return alpha
 
-    def __calcul_position_div(self) -> float:
-        """Nous permet de calculer la position du dividende dans l'Tree
+    def _calculate_div_position(self) -> float:
+        """Allows us to calculate the position of the dividend in the Tree
 
         Returns:
-            float: nous renvoie la position d'ex-date du div, exprimé en nombre de pas dans l'Tree.
+            float: returns the ex-date position of the div, expressed in number of steps in the Tree.
         """
-        nb_jour_detachement = (
-            self.donnee_marche.dividende_ex_date - self.option.date_pricing
+        nb_days_detachment = (
+            self.market_data.dividend_ex_date - self.option.pricing_date
         ).days
-        position_div = (
-            nb_jour_detachement / self.convention_base_calendaire / self.delta_t
+        div_position = (
+            nb_days_detachment / self.calendar_base_convention / self.delta_t
         )
 
-        return position_div
+        return div_position
 
-    def __planter_Tree(self) -> None:
-        """Procédure nous permettant de construire notre Tree"""
+    def _build_tree(self) -> None:
+        """Procedure allowing us to build our Tree"""
 
-        def __creer_prochain_block_haut(
-            actuel_centre: Node, prochain_Node: Node
+        def _create_next_block_up(
+            current_center: Node, next_node: Node
         ) -> None:
-            """Procédure nous permettant de construire un bloc complet vers le haut à partir d'un Node de référence et d'un Node futur
+            """Procedure allowing us to build a complete block upwards from a reference Node and a future Node
 
             Args:
-                actuel_centre (Node): notre Node de référence
-                prochain_Node (Node): le Node autour duquel nous allons créer le bloc
+                current_center (Node): our reference Node
+                next_node (Node): the Node around which we will create the block
             """
-            temp_centre = actuel_centre
-            temp_futur_centre = prochain_Node
+            temp_center = current_center
+            temp_future_center = next_node
 
-            # Nous iterrons en partant du tronc et en nous dirigeant vers l'extrêmité haute d'une colonne afin de créer des Nodes sur la colonne suivante
-            while not temp_centre.haut is None:
-                temp_centre = temp_centre.haut
-                temp_centre._creer_prochain_block(temp_futur_centre)
-                temp_futur_centre = temp_futur_centre.haut
+            # We iterate starting from the trunk and moving towards the upper extremity of a column in order to create Nodes on the next column
+            while not temp_center.up is None:
+                temp_center = temp_center.up
+                temp_center._create_next_block(temp_future_center)
+                temp_future_center = temp_future_center.up
 
-        def __creer_prochain_block_bas(
-            actuel_centre: Node, prochain_Node: Node
+        def _create_next_block_down(
+            current_center: Node, next_node: Node
         ) -> None:
-            """Procédure nous permettant de construire un bloc complet vers le bas à partir d'un Node de référence et d'un Node futur
+            """Procedure allowing us to build a complete block downwards from a reference Node and a future Node
 
             Args:
-                actuel_centre (Node): notre Node de référence
-                prochain_Node (Node): le Node autour duquel nous allons créer le bloc
+                current_center (Node): our reference Node
+                next_node (Node): the Node around which we will create the block
             """
-            temp_centre = actuel_centre
-            temp_futur_centre = prochain_Node
+            temp_center = current_center
+            temp_future_center = next_node
 
-            # Nous iterrons en partant du tronc et en nous dirigeant vers l'extrêmité basse d'une colonne afin de créer des Nodes sur la colonne suivante
-            while not temp_centre.bas is None:
-                temp_centre = temp_centre.bas
-                temp_centre._creer_prochain_block(temp_futur_centre)
-                temp_futur_centre = temp_futur_centre.bas
+            # We iterate starting from the trunk and moving towards the lower extremity of a column in order to create Nodes on the next column
+            while not temp_center.down is None:
+                temp_center = temp_center.down
+                temp_center._create_next_block(temp_future_center)
+                temp_future_center = temp_future_center.down
 
-        def __creer_nouvelle_col(self, actuel_centre: Node) -> Node:
-            """Procédure nous permettant de créer entièrement une colonne de notre Tree.
+        def _create_new_col(self, current_center: Node) -> Node:
+            """Procedure allowing us to fully create a column of our Tree.
 
             Args:
-                actuel_centre (Node): le Node sur le tronc actuel, que nous prenons en référence et à partir duquel nous créerons la colonne suivante.
+                current_center (Node): the Node on the current trunk, which we take as reference and from which we will create the next column.
 
             Returns:
-                Node: nous renvoyons le futur Node sur le centre afin de faire itérer cette fonction dessus
+                Node: we return the future Node on the center in order to iterate this function on it
             """
-            prochain_Node = Node(
-                actuel_centre._calcul_forward(), self, actuel_centre.position_Tree + 1
+            next_node = Node(
+                current_center._calculate_forward(), self, current_center.tree_position + 1
             )
 
-            actuel_centre._creer_prochain_block(prochain_Node)
-            __creer_prochain_block_haut(actuel_centre, prochain_Node)
-            __creer_prochain_block_bas(actuel_centre, prochain_Node)
+            current_center._create_next_block(next_node)
+            _create_next_block_up(current_center, next_node)
+            _create_next_block_down(current_center, next_node)
 
-            return prochain_Node
+            return next_node
 
-        # Nous créons la racine de notre Tree ici, ne pouvant le faire au niveau de __init__ afin d'éviter un import récursif
-        self.racine = Node(
-            prix_sj=self.donnee_marche.prix_spot, Tree=self, position_Tree=0
+        # We create the root of our Tree here, not being able to do it at the __init__ level to avoid recursive import
+        self.root = Node(
+            spot_price=self.market_data.spot_price, tree=self, tree_position=0
         )
 
-        # Notre première référence est la racine
-        actuel_centre = self.racine
+        # Our first reference is the root
+        current_center = self.root
 
-        # Nous créons ici le premier bloc. Nous itérerons ensuite sur autant de pas que nécéssaire afin de créer les colonnes suivantes.
-        for pas in range(self.nb_pas):
-            actuel_centre = __creer_nouvelle_col(self, actuel_centre)
+        # We create the first block here. We will then iterate over as many steps as necessary to create the following columns.
+        for step in range(self.num_steps):
+            current_center = _create_new_col(self, current_center)
 
-    def pricer_Tree(self) -> None:
-        """Fonction qui nous permettra de construire l'Tree puis de le valoriser pour enfin donner la valeur à l'attribut "prix_option"."""
-        self.__planter_Tree()
+    def price_option(self) -> None:
+        """Function that will allow us to build the Tree then value it to finally give the value to the "option_price" attribute."""
+        self._build_tree()
 
-        self.racine._calcul_valeur_intrinseque()
-        self.prix_option = self.racine.valeur_intrinseque
+        self.root._calculate_intrinsic_value()
+        self.option_price = self.root.intrinsic_value
 
 
 class Node:
-    def __init__(self, prix_sj: float, Tree: Tree, position_Tree: int) -> None:
-        """Initialisation de la classe
+    def __init__(self, spot_price: float, tree: Tree, tree_position: int) -> None:
+        """Initialization of the class
 
         Args:
-            prix_sj (float): le prix du sous-jacent de ce Node
-            Tree (Tree): l'Tree auquel est rattaché notre Node
-            position_Tree (int): decrit la position du Node dans l'Tree sur l'axe horizontal
+            spot_price (float): the underlying price of this Node
+            tree (Tree): the Tree to which our Node is attached
+            tree_position (int): describes the position of the Node in the Tree on the horizontal axis
         """
-        self.epsilon = Tree.epsilon
+        self.epsilon = tree.epsilon
 
-        self.prix_sj = prix_sj
-        self.Tree = Tree
-        self.position_Tree = position_Tree
+        self.spot_price = spot_price
+        self.tree = tree
+        self.tree_position = tree_position
 
-        self.bas = None
-        self.haut = None
-        self.precedent_centre = None
-        self.futur_bas = None
-        self.futur_centre = None
-        self.futur_haut = None
-        self.p_bas = None
-        self.p_mid = None
-        self.p_haut = None
-        self.p_cumule = 1 if self.position_Tree == 0 else 0
+        self.down: Node | None = None
+        self.up: Node | None = None
+        self.previous_center: Node | None = None
+        self.future_down: Node | None = None
+        self.future_center: Node | None = None
+        self.future_up: Node | None = None
+        self.p_down: float | None = None
+        self.p_mid: float | None = None
+        self.p_up: float | None = None
+        self.cumulative_p: float = 1.0 if self.tree_position == 0 else 0.0
 
-        self.valeur_intrinseque = None
+        self.intrinsic_value: float | None = None
 
-    def _calcul_forward(self) -> float:
-        """Permet de calculer la valeur du prix forward sur dt suivant
+    def _calculate_forward(self) -> float:
+        """Allows calculating the forward price value on the next dt
 
         Returns:
-            float : prix forward
+            float : forward price
         """
         if (
-            self.position_Tree < self.Tree.position_div
-            and self.position_Tree + 1 > self.Tree.position_div
+            self.tree_position < self.tree.div_position
+            and self.tree_position + 1 > self.tree.div_position
         ):
-            div = self.Tree.donnee_marche.dividende_montant
+            div = self.tree.market_data.dividend_amount
         else:
             div = 0
 
-        return self.prix_sj * self.Tree.facteur_capitalisation - div
+        return self.spot_price * self.tree.capitalization_factor - div
 
-    def __calcul_variance(self) -> float:
-        """Nous permet de calculer la variance
+    def _calculate_variance(self) -> float:
+        """Allows us to calculate the variance
 
         Returns:
             float: variance
         """
         return (
-            (self.prix_sj**2)
-            * np.exp(2 * self.Tree.donnee_marche.taux_interet * self.Tree.delta_t)
-            * (np.exp((self.Tree.donnee_marche.volatilite**2) * self.Tree.delta_t) - 1)
+            (self.spot_price**2)
+            * np.exp(2 * self.tree.market_data.interest_rate * self.tree.delta_t)
+            * (np.exp((self.tree.market_data.volatility**2) * self.tree.delta_t) - 1)
         )
 
-    def __calcul_proba(self) -> None:
-        """Nous permet de calculer les probabilités haut, centre, bas."""
-        fw = self._calcul_forward()
+    def _calculate_proba(self) -> None:
+        """Allows us to calculate the up, center, down probabilities."""
+        fw = self._calculate_forward()
 
-        p_bas = (
-            (self.futur_centre.prix_sj ** (-2)) * (self.__calcul_variance() + fw**2)
+        if self.future_center is None:
+            raise ValueError("Future center node is not defined")
+
+        p_down = (
+            (self.future_center.spot_price ** (-2)) * (self._calculate_variance() + fw**2)
             - 1
-            - (self.Tree.alpha + 1) * ((self.futur_centre.prix_sj ** (-1)) * fw - 1)
-        ) / ((1 - self.Tree.alpha) * (self.Tree.alpha ** (-2) - 1))
+            - (self.tree.alpha + 1) * ((self.future_center.spot_price ** (-1)) * fw - 1)
+        ) / ((1 - self.tree.alpha) * (self.tree.alpha ** (-2) - 1))
 
-        p_haut = (
-            (1 / self.futur_centre.prix_sj * fw - 1) - (1 / self.Tree.alpha - 1) * p_bas
-        ) / (self.Tree.alpha - 1)
+        p_up = (
+            (1 / self.future_center.spot_price * fw - 1) - (1 / self.tree.alpha - 1) * p_down
+        ) / (self.tree.alpha - 1)
 
-        p_mid = 1 - p_haut - p_bas
+        p_mid = 1 - p_up - p_down
 
-        if not (p_bas > 0 and p_haut > 0 and p_mid > 0):
-            raise ValueError("Probabilité négative")
+        if not (p_down > 0 and p_up > 0 and p_mid > 0):
+            raise ValueError("Negative probability")
 
-        if not np.isclose(p_bas + p_haut + p_mid, somme_proba, atol=1e-2):
-            print(f"p_bas : {p_bas}, p_haut : {p_haut}, p_mid : {p_mid}")
+        if not np.isclose(p_down + p_up + p_mid, sum_proba, atol=1e-2):
+            print(f"p_down : {p_down}, p_up : {p_up}, p_mid : {p_mid}")
             raise ValueError(
-                f"La somme des probabilités doit être égale à {somme_proba}"
+                f"The sum of probabilities must be equal to {sum_proba}"
             )
         else:
-            self.p_bas = p_bas
-            self.p_haut = p_haut
+            self.p_down = p_down
+            self.p_up = p_up
             self.p_mid = p_mid
 
-    def __test_Node_proche(self, forward: float) -> bool:
-        """Cette fonction nous permet de tester si le Node est compris entre un prix d'un Node haut ou d'un Node bas.
+    def _test_close_node(self, forward: float) -> bool:
+        """This function allows us to test if the Node is between an up Node price or a down Node price.
 
         Args:
-            forward (float): le prix forward de notre Node que l'on aura calculé préalablement.
+            forward (float): the forward price of our Node that we will have calculated beforehand.
 
         Returns:
-            bool: passage du test ou non
+            bool: pass the test or not
         """
-        condition_1 = self.prix_sj * (1 + 1 / self.Tree.alpha) / 2 <= forward
-        condition_2 = forward <= self.prix_sj * (1 + self.Tree.alpha) / 2
+        condition_1 = self.spot_price * (1 + 1 / self.tree.alpha) / 2 <= forward
+        condition_2 = forward <= self.spot_price * (1 + self.tree.alpha) / 2
         if condition_1 and condition_2:
             return True
         else:
             return False
 
-    def bas_suivant(self) -> Node:
-        """Nous permet de créer le Node bas suivant si il n'existe pas déjà.
+    def next_down(self) -> Node:
+        """Allows us to create the next down Node if it does not already exist.
 
         Returns:
-            Node: le Node bas
+            Node: the down Node
         """
-        if self.bas == None:
-            self.bas = Node(
-                self.prix_sj / self.Tree.alpha, self.Tree, self.position_Tree
+        if self.down == None:
+            self.down = Node(
+                self.spot_price / self.tree.alpha, self.tree, self.tree_position
             )
-            self.bas.haut = self
-        return self.bas
+            self.down.up = self
+        return self.down
 
-    def haut_suivant(self) -> Node:
-        """Nous permet de créer le Node haut suivant si il n'existe pas déjà.
+    def next_up(self) -> Node:
+        """Allows us to create the next up Node if it does not already exist.
 
         Returns:
-            Node: le Node haut
+            Node: the up Node
         """
-        if self.haut == None:
-            self.haut = Node(
-                self.prix_sj * self.Tree.alpha, self.Tree, self.position_Tree
+        if self.up == None:
+            self.up = Node(
+                self.spot_price * self.tree.alpha, self.tree, self.tree_position
             )
-            self.haut.bas = self
-        return self.haut
+            self.up.down = self
+        return self.up
 
-    def trouve_centre(self, prochain_Node: Node) -> Node:
-        """Fonction nous permettant de retrouver le prochain Node centre.
+    def find_center(self, next_node: Node) -> Node:
+        """Function allowing us to find the next center Node.
 
         Args:
-            prochain_Node (Node): Node candidat
+            next_node (Node): candidate Node
 
         Returns:
-            Node: le centre de notre Node de référence.
+            Node: the center of our reference Node.
         """
-        fw = self._calcul_forward()
+        fw = self._calculate_forward()
 
-        if prochain_Node.__test_Node_proche(fw):
-            prochain_Node = prochain_Node
+        if next_node._test_close_node(fw):
+            next_node = next_node
 
-        elif fw > prochain_Node.prix_sj:
-            while not prochain_Node.__test_Node_proche(fw):
-                prochain_Node = prochain_Node.haut_suivant()
+        elif fw > next_node.spot_price:
+            while not next_node._test_close_node(fw):
+                next_node = next_node.next_up()
 
         else:
-            while not prochain_Node.__test_Node_proche(fw):
-                prochain_Node = prochain_Node.bas_suivant()
+            while not next_node._test_close_node(fw):
+                next_node = next_node.next_down()
 
-        return prochain_Node
+        return next_node
 
-    def _creer_prochain_block(self, prochain_Node: Node) -> None:
-        """Nous permet de créer un bloc de Node complet.
+    def _create_next_block(self, next_node: Node) -> None:
+        """Allows us to create a complete Node block.
 
         Args:
-            prochain_Node (Node): _description_
+            next_node (Node): _description_
         """
-        self.futur_centre = self.trouve_centre(prochain_Node=prochain_Node)
-        self.__calcul_proba()
+        self.future_center = self.find_center(next_node=next_node)
+        self._calculate_proba()
 
-        self.futur_centre.p_cumule += self.p_cumule * self.p_mid
-        self.futur_centre.precedent_centre = self
+        if self.p_mid is None or self.p_up is None or self.p_down is None:
+            raise ValueError("Probabilities not calculated")
 
-        if self.Tree.pruning:
-            if self.haut == None:
-                if self.p_cumule * self.p_haut >= self.epsilon:
-                    self.futur_haut = self.futur_centre.haut_suivant()
-                    self.futur_haut.p_cumule += self.p_cumule * self.p_haut
+        if self.future_center is None:
+            raise ValueError("Future center not found")
+
+        self.future_center.cumulative_p += self.cumulative_p * self.p_mid
+        self.future_center.previous_center = self
+
+        if self.tree.pruning:
+            if self.up is None:
+                if self.cumulative_p * self.p_up >= self.epsilon:
+                    self.future_up = self.future_center.next_up()
+                    self.future_up.cumulative_p += self.cumulative_p * self.p_up
                 else:
-                    # self.p_mid += self.p_haut
-                    self.p_haut = 0
-            elif not self.haut == None:
-                self.futur_haut = self.futur_centre.haut_suivant()
-                self.futur_haut.p_cumule += self.p_cumule * self.p_haut
+                    # self.p_mid += self.p_up
+                    self.p_up = 0
+            elif self.up is not None:
+                self.future_up = self.future_center.next_up()
+                self.future_up.cumulative_p += self.cumulative_p * self.p_up
 
-            if self.bas == None:
-                if self.p_cumule * self.p_bas >= self.epsilon:
-                    self.futur_bas = self.futur_centre.bas_suivant()
-                    self.futur_bas.p_cumule += self.p_cumule * self.p_bas
+            if self.down is None:
+                if self.cumulative_p * self.p_down >= self.epsilon:
+                    self.future_down = self.future_center.next_down()
+                    self.future_down.cumulative_p += self.cumulative_p * self.p_down
                 else:
-                    # self.p_mid += self.p_bas
-                    self.p_bas = 0
-            elif not self.bas == None:
-                self.futur_bas = self.futur_centre.bas_suivant()
-                self.futur_bas.p_cumule += self.p_cumule * self.p_bas
+                    # self.p_mid += self.p_down
+                    self.p_down = 0
+            elif self.down is not None:
+                self.future_down = self.future_center.next_down()
+                self.future_down.cumulative_p += self.cumulative_p * self.p_down
 
-        if not self.Tree.pruning:
-            self.futur_haut = self.futur_centre.haut_suivant()
-            self.futur_haut.p_cumule += self.p_cumule * self.p_haut
-            self.futur_bas = self.futur_centre.bas_suivant()
-            self.futur_bas.p_cumule += self.p_cumule * self.p_bas
+        if not self.tree.pruning:
+            self.future_up = self.future_center.next_up()
+            self.future_up.cumulative_p += self.cumulative_p * self.p_up
+            self.future_down = self.future_center.next_down()
+            self.future_down.cumulative_p += self.cumulative_p * self.p_down
 
-    def __calcul_payoff(self) -> float:
-        """Calcul du payoff selon le type de contrat
+    def _calculate_payoff(self) -> float:
+        """Calculation of the payoff according to the type of contract
 
         Returns:
-            float: le payoff
+            float: the payoff
         """
-        option = self.Tree.option
+        option = self.tree.option
 
         def call_put_payoff():
             return (
-                self.prix_sj - option.prix_exercice
-                if option.call
-                else option.prix_exercice - self.prix_sj
+                self.spot_price - option.strike_price
+                if option.is_call
+                else option.strike_price - self.spot_price
             )
 
-        if option.barriere is not None:
-            if option.barriere.type_barriere is TypeBarriere.knock_in:
+        if option.barrier is not None:
+            if option.barrier.barrier_type is BarrierType.knock_in:
                 if (
-                    option.barriere.direction_barriere is DirectionBarriere.up
-                    and self.prix_sj >= option.barriere.niveau_barriere
+                    option.barrier.barrier_direction is BarrierDirection.up
+                    and self.spot_price >= option.barrier.barrier_level
                 ) or (
-                    option.barriere.direction_barriere is DirectionBarriere.down
-                    and self.prix_sj <= option.barriere.niveau_barriere
+                    option.barrier.barrier_direction is BarrierDirection.down
+                    and self.spot_price <= option.barrier.barrier_level
                 ):
                     payoff = max(min_payoff, call_put_payoff())
                 else:
                     payoff = min_payoff
 
-            elif option.barriere.type_barriere is TypeBarriere.knock_out:
+            elif option.barrier.barrier_type is BarrierType.knock_out:
                 if (
-                    option.barriere.direction_barriere is DirectionBarriere.up
-                    and self.prix_sj >= option.barriere.niveau_barriere
+                    option.barrier.barrier_direction is BarrierDirection.up
+                    and self.spot_price >= option.barrier.barrier_level
                 ) or (
-                    option.barriere.direction_barriere is DirectionBarriere.down
-                    and self.prix_sj <= option.barriere.niveau_barriere
+                    option.barrier.barrier_direction is BarrierDirection.down
+                    and self.spot_price <= option.barrier.barrier_level
                 ):
                     payoff = min_payoff
                 else:
                     payoff = max(min_payoff, call_put_payoff())
+            else:
+                payoff = min_payoff
 
         else:
             payoff = max(call_put_payoff(), min_payoff)
 
         return payoff
 
-    def _calcul_valeur_intrinseque(self) -> None:
-        """Nous permet de calculer la valeur intrinseque du Node, en prenant compte du type d'option considéré"""
-        if self.futur_centre is None:
-            self.valeur_intrinseque = self.__calcul_payoff()
+    def _calculate_intrinsic_value(self) -> None:
+        """Allows us to calculate the intrinsic value of the Node, taking into account the type of option considered"""
+        if self.future_center is None:
+            self.intrinsic_value = self._calculate_payoff()
 
-        elif self.valeur_intrinseque == None:
-            for futur_Node in ["futur_haut", "futur_centre", "futur_bas"]:
-                if getattr(self, futur_Node) is None:
+        elif self.intrinsic_value is None:
+            for future_node_name in ["future_up", "future_center", "future_down"]:
+                if getattr(self, future_node_name) is None:
                     setattr(
-                        self, futur_Node, Node(0, self.Tree, self.position_Tree + 1)
+                        self, future_node_name, Node(0, self.tree, self.tree_position + 1)
                     )
-                    child_node = getattr(self, futur_Node)
-                    child_node.valeur_intrinseque = 0
+                    child_node = getattr(self, future_node_name)
+                    child_node.intrinsic_value = 0
                 else:
-                    child_node = getattr(self, futur_Node)
-                    if getattr(child_node, "valeur_intrinseque") is None:
-                        child_node._calcul_valeur_intrinseque()
+                    child_node = getattr(self, future_node_name)
+                    if getattr(child_node, "intrinsic_value") is None:
+                        child_node._calculate_intrinsic_value()
 
-            vecteur_proba = np.array(
-                [self.p_haut, self.p_mid, self.p_bas]
-            )  # vecteur composé des probabilités des Nodes futurs du Node actuel
-            vecteur_prix = np.array(
+            if self.future_up is None or self.future_center is None or self.future_down is None:
+                raise ValueError("Future nodes not defined")
+
+            if self.p_up is None or self.p_mid is None or self.p_down is None:
+                raise ValueError("Probabilities not defined")
+
+            proba_vector = np.array(
+                [self.p_up, self.p_mid, self.p_down]
+            )  # vector composed of the probabilities of the future Nodes of the current Node
+            price_vector = np.array(
                 [
-                    self.futur_haut.valeur_intrinseque,
-                    self.futur_centre.valeur_intrinseque,
-                    self.futur_bas.valeur_intrinseque,
+                    self.future_up.intrinsic_value,
+                    self.future_center.intrinsic_value,
+                    self.future_down.intrinsic_value,
                 ]
             )  #
-            valeur_intrinseque = self.Tree.facteur_actualisation * vecteur_prix.dot(
-                vecteur_proba
-            )  # ici, produit scalaire des prix par leurs probabilités
+            intrinsic_value = self.tree.discount_factor * price_vector.dot(
+                proba_vector
+            )  # here, scalar product of prices by their probabilities
 
-            if self.Tree.option.americaine:
-                payoff_dt = self.__calcul_payoff()
-                valeur_intrinseque = max(payoff_dt, valeur_intrinseque)
+            if self.tree.option.is_american:
+                payoff_dt = self._calculate_payoff()
+                intrinsic_value = max(payoff_dt, intrinsic_value)
 
-            self.valeur_intrinseque = valeur_intrinseque
+            self.intrinsic_value = intrinsic_value

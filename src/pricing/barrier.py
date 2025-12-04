@@ -1,17 +1,18 @@
-#Imports
-from typing import Union
 from dataclasses import dataclass
 
-from src.pricing.enums import TypeBarriere, DirectionBarriere
+from src.pricing.enums import BarrierType, BarrierDirection
 
-#Classes
 
 @dataclass
-class Barriere:
-    """Classe utilisée pour représenter une barrière pour une option considérée
-    """
-    
-    def __init__(self, niveau_barriere : float, type_barriere : TypeBarriere | None, direction_barriere : DirectionBarriere | None) -> None: 
-        self.niveau_barriere = niveau_barriere
-        self.type_barriere = type_barriere
-        self.direction_barriere = direction_barriere
+class Barrier:
+    """Class used to represent a barrier for a considered option"""
+
+    def __init__(
+        self,
+        barrier_level: float,
+        barrier_type: BarrierType | None,
+        barrier_direction: BarrierDirection | None,
+    ) -> None:
+        self.barrier_level = barrier_level
+        self.barrier_type = barrier_type
+        self.barrier_direction = barrier_direction
