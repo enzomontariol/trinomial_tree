@@ -6,12 +6,7 @@ from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.enums import CalendarBaseConvention, BarrierType, BarrierDirection
 from src.pricing.pricer import Pricer
-
-
-sum_proba = 1
-min_payoff = 0
-min_spot_price = 0  # we assume that the underlying price cannot be negative (which in the case of a purely financial asset will a priori always be true)
-epsilon = 1e-15  # our default pruning threshold
+from src.pricing.config import PricingConfig
 
 
 class Tree(Pricer):
@@ -20,9 +15,10 @@ class Tree(Pricer):
         num_steps: int,
         market_data: MarketData,
         option: Option,
-        alpha_parameter: float = 3,
-        pruning: bool = True,
-        epsilon: float = epsilon,
+        config: PricingConfig | None = None,
+        alpha_parameter: float | None = None,
+        pruning: bool | None = None,
+        epsilon: float | None = None,
     ) -> None:
         """Initialization of the class
 
@@ -30,14 +26,26 @@ class Tree(Pricer):
             num_steps (float): the number of steps in our model
             market_data (MarketData): Class used to represent market data.
             option (Option): Class used to represent an option and its parameters.
-            pruning (bool, optional): whether or not to do "pruning". Default True.
+            config (PricingConfig, optional): Configuration object.
+            alpha_parameter (float, optional): Override for alpha parameter.
+            pruning (bool, optional): Override for pruning.
+            epsilon (float, optional): Override for epsilon.
         """
         self.num_steps = num_steps
         self.market_data = market_data
         self.option = option
-        self.alpha_parameter = alpha_parameter
-        self.pruning = pruning
-        self.epsilon = epsilon
+
+        # Initialize config
+        self.config = config if config is not None else PricingConfig()
+
+        # Apply overrides if provided
+        if alpha_parameter is not None:
+            self.config.alpha_parameter = alpha_parameter
+        if pruning is not None:
+            self.config.pruning = pruning
+        if epsilon is not None:
+            self.config.epsilon = epsilon
+
         self.delta_t = self._calculate_delta_t()
         self.capitalization_factor = self._calculate_capitalization_factor()
         self.discount_factor = self._calculate_discount_factor()
@@ -88,7 +96,7 @@ class Tree(Pricer):
         """
         alpha = np.exp(
             self.market_data.volatility
-            * np.sqrt(self.alpha_parameter)
+            * np.sqrt(self.config.alpha_parameter)
             * np.sqrt(self.delta_t)
         )
         return alpha
@@ -205,7 +213,7 @@ class Node:
             tree (Tree): the Tree to which our Node is attached
             tree_position (int): describes the position of the Node in the Tree on the horizontal axis
         """
-        self.epsilon = tree.epsilon
+        self.epsilon = tree.config.epsilon
 
         self.spot_price = spot_price
         self.tree = tree
@@ -276,9 +284,11 @@ class Node:
         if not (p_down > 0 and p_up > 0 and p_mid > 0):
             raise ValueError("Negative probability")
 
-        if not np.isclose(p_down + p_up + p_mid, sum_proba, atol=1e-2):
+        if not np.isclose(p_down + p_up + p_mid, self.tree.config.sum_proba, atol=1e-2):
             print(f"p_down : {p_down}, p_up : {p_up}, p_mid : {p_mid}")
-            raise ValueError(f"The sum of probabilities must be equal to {sum_proba}")
+            raise ValueError(
+                f"The sum of probabilities must be equal to {self.tree.config.sum_proba}"
+            )
         else:
             self.p_down = p_down
             self.p_up = p_up
@@ -368,7 +378,7 @@ class Node:
         self.future_center.cumulative_p += self.cumulative_p * self.p_mid
         self.future_center.previous_center = self
 
-        if self.tree.pruning:
+        if self.tree.config.pruning:
             if self.up is None:
                 if self.cumulative_p * self.p_up >= self.epsilon:
                     self.future_up = self.future_center.next_up()
@@ -391,7 +401,7 @@ class Node:
                 self.future_down = self.future_center.next_down()
                 self.future_down.cumulative_p += self.cumulative_p * self.p_down
 
-        if not self.tree.pruning:
+        if not self.tree.config.pruning:
             self.future_up = self.future_center.next_up()
             self.future_up.cumulative_p += self.cumulative_p * self.p_up
             self.future_down = self.future_center.next_down()
@@ -421,9 +431,9 @@ class Node:
                     option.barrier.barrier_direction is BarrierDirection.down
                     and self.spot_price <= option.barrier.barrier_level
                 ):
-                    payoff = max(min_payoff, call_put_payoff())
+                    payoff = max(self.tree.config.min_payoff, call_put_payoff())
                 else:
-                    payoff = min_payoff
+                    payoff = self.tree.config.min_payoff
 
             elif option.barrier.barrier_type is BarrierType.knock_out:
                 if (
@@ -433,14 +443,14 @@ class Node:
                     option.barrier.barrier_direction is BarrierDirection.down
                     and self.spot_price <= option.barrier.barrier_level
                 ):
-                    payoff = min_payoff
+                    payoff = self.tree.config.min_payoff
                 else:
-                    payoff = max(min_payoff, call_put_payoff())
+                    payoff = max(self.tree.config.min_payoff, call_put_payoff())
             else:
-                payoff = min_payoff
+                payoff = self.tree.config.min_payoff
 
         else:
-            payoff = max(call_put_payoff(), min_payoff)
+            payoff = max(call_put_payoff(), self.tree.config.min_payoff)
 
         return payoff
 
