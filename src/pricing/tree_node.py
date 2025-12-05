@@ -5,6 +5,7 @@ import numpy as np
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.enums import CalendarBaseConvention, BarrierType, BarrierDirection
+from src.pricing.pricer import Pricer
 
 
 sum_proba = 1
@@ -13,14 +14,12 @@ min_spot_price = 0  # we assume that the underlying price cannot be negative (wh
 epsilon = 1e-15  # our default pruning threshold
 
 
-
-class Tree:
+class Tree(Pricer):
     def __init__(
         self,
         num_steps: int,
         market_data: MarketData,
         option: Option,
-        calendar_base_convention: int = CalendarBaseConvention._365.value,
         alpha_parameter: float = 3,
         pruning: bool = True,
         epsilon: float = epsilon,
@@ -31,13 +30,11 @@ class Tree:
             num_steps (float): the number of steps in our model
             market_data (MarketData): Class used to represent market data.
             option (Option): Class used to represent an option and its parameters.
-            calendar_base_convention (CalendarBaseConvention, optional): the calendar base we will use for our calculations. Default CalendarBaseConvention._365.value.
             pruning (bool, optional): whether or not to do "pruning". Default True.
         """
         self.num_steps = num_steps
         self.market_data = market_data
         self.option = option
-        self.calendar_base_convention = calendar_base_convention
         self.alpha_parameter = alpha_parameter
         self.pruning = pruning
         self.epsilon = epsilon
@@ -57,7 +54,7 @@ class Tree:
         """
         return (
             self.option.maturity - self.option.pricing_date
-        ).days / self.calendar_base_convention
+        ).days / self.option.calendar_base_convention
 
     def _calculate_delta_t(self) -> float:
         """Calculates the reference time interval that will be used in our model.
@@ -106,7 +103,7 @@ class Tree:
             self.market_data.dividend_ex_date - self.option.pricing_date
         ).days
         div_position = (
-            nb_days_detachment / self.calendar_base_convention / self.delta_t
+            nb_days_detachment / self.option.calendar_base_convention / self.delta_t
         )
 
         return div_position
@@ -114,9 +111,7 @@ class Tree:
     def _build_tree(self) -> None:
         """Procedure allowing us to build our Tree"""
 
-        def _create_next_block_up(
-            current_center: Node, next_node: Node
-        ) -> None:
+        def _create_next_block_up(current_center: Node, next_node: Node) -> None:
             """Procedure allowing us to build a complete block upwards from a reference Node and a future Node
 
             Args:
@@ -132,9 +127,7 @@ class Tree:
                 temp_center._create_next_block(temp_future_center)
                 temp_future_center = temp_future_center.up
 
-        def _create_next_block_down(
-            current_center: Node, next_node: Node
-        ) -> None:
+        def _create_next_block_down(current_center: Node, next_node: Node) -> None:
             """Procedure allowing us to build a complete block downwards from a reference Node and a future Node
 
             Args:
@@ -160,7 +153,9 @@ class Tree:
                 Node: we return the future Node on the center in order to iterate this function on it
             """
             next_node = Node(
-                current_center._calculate_forward(), self, current_center.tree_position + 1
+                current_center._calculate_forward(),
+                self,
+                current_center.tree_position + 1,
             )
 
             current_center._create_next_block(next_node)
@@ -181,12 +176,24 @@ class Tree:
         for step in range(self.num_steps):
             current_center = _create_new_col(self, current_center)
 
-    def price_option(self) -> None:
-        """Function that will allow us to build the Tree then value it to finally give the value to the "option_price" attribute."""
+    def price(self) -> float:
+        """Function that will allow us to build the Tree then value it to finally give the value to the "option_price" attribute.
+
+        Returns:
+            float: The calculated option price.
+        """
         self._build_tree()
+
+        if self.root is None:
+            raise ValueError("Tree root not initialized after build.")
 
         self.root._calculate_intrinsic_value()
         self.option_price = self.root.intrinsic_value
+
+        if self.option_price is None:
+            raise ValueError("Option price calculation failed.")
+
+        return self.option_price
 
 
 class Node:
@@ -253,13 +260,15 @@ class Node:
             raise ValueError("Future center node is not defined")
 
         p_down = (
-            (self.future_center.spot_price ** (-2)) * (self._calculate_variance() + fw**2)
+            (self.future_center.spot_price ** (-2))
+            * (self._calculate_variance() + fw**2)
             - 1
             - (self.tree.alpha + 1) * ((self.future_center.spot_price ** (-1)) * fw - 1)
         ) / ((1 - self.tree.alpha) * (self.tree.alpha ** (-2) - 1))
 
         p_up = (
-            (1 / self.future_center.spot_price * fw - 1) - (1 / self.tree.alpha - 1) * p_down
+            (1 / self.future_center.spot_price * fw - 1)
+            - (1 / self.tree.alpha - 1) * p_down
         ) / (self.tree.alpha - 1)
 
         p_mid = 1 - p_up - p_down
@@ -269,9 +278,7 @@ class Node:
 
         if not np.isclose(p_down + p_up + p_mid, sum_proba, atol=1e-2):
             print(f"p_down : {p_down}, p_up : {p_up}, p_mid : {p_mid}")
-            raise ValueError(
-                f"The sum of probabilities must be equal to {sum_proba}"
-            )
+            raise ValueError(f"The sum of probabilities must be equal to {sum_proba}")
         else:
             self.p_down = p_down
             self.p_up = p_up
@@ -446,7 +453,9 @@ class Node:
             for future_node_name in ["future_up", "future_center", "future_down"]:
                 if getattr(self, future_node_name) is None:
                     setattr(
-                        self, future_node_name, Node(0, self.tree, self.tree_position + 1)
+                        self,
+                        future_node_name,
+                        Node(0, self.tree, self.tree_position + 1),
                     )
                     child_node = getattr(self, future_node_name)
                     child_node.intrinsic_value = 0
@@ -455,7 +464,11 @@ class Node:
                     if getattr(child_node, "intrinsic_value") is None:
                         child_node._calculate_intrinsic_value()
 
-            if self.future_up is None or self.future_center is None or self.future_down is None:
+            if (
+                self.future_up is None
+                or self.future_center is None
+                or self.future_down is None
+            ):
                 raise ValueError("Future nodes not defined")
 
             if self.p_up is None or self.p_mid is None or self.p_down is None:

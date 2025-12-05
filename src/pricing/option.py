@@ -2,6 +2,7 @@ import datetime as dt
 from dataclasses import dataclass
 
 from src.pricing.barrier import Barrier
+from src.pricing.enums import CalendarBaseConvention
 
 
 @dataclass
@@ -14,3 +15,4 @@ class Option:
     is_american: bool = False
     is_call: bool = True
     pricing_date: dt.date = dt.date.today()
+    calendar_base_convention: int = CalendarBaseConvention._365.value

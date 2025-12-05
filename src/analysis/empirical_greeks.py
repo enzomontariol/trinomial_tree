@@ -32,7 +32,7 @@ class EmpiricalGreeks:
 
         if self.tree.option_price is None:
             # In case the user provides an input Tree that has not been priced yet.
-            self.tree.price_option()
+            self.tree.price()
 
     def _price_tree_shock(
         self, attribute_to_modify: str, d: Union[float, dt.date]
@@ -47,14 +47,13 @@ class EmpiricalGreeks:
             Tree: The new Tree that has been priced all else equal.
         """
 
-        new_tree = copy.copy(self.tree)
-        market_data = copy.copy(self.tree.market_data)
-        option = copy.copy(self.tree.option)
+        market_data_modified = copy.copy(self.tree.market_data)
+        option_modified = copy.copy(self.tree.option)
 
         # Theta case
         if attribute_to_modify == "pricing_date":
-            setattr(option, attribute_to_modify, d)
-            setattr(market_data, "start_date", d)
+            setattr(option_modified, attribute_to_modify, d)
+            setattr(market_data_modified, "start_date", d)
 
         # Rho case
         elif (
@@ -62,22 +61,28 @@ class EmpiricalGreeks:
         ):  # we assume that the shock on interest rates applies to both capitalization and discount factors
             attribute_to_modify_1 = "interest_rate"
             attribute_to_modify_2 = "discount_rate"
-            d1 = getattr(market_data, attribute_to_modify_1) + d
-            d2 = getattr(market_data, attribute_to_modify_2) + d
-            setattr(market_data, attribute_to_modify_1, d1)
-            setattr(market_data, attribute_to_modify_2, d2)
+            d1 = getattr(market_data_modified, attribute_to_modify_1) + d
+            d2 = getattr(market_data_modified, attribute_to_modify_2) + d
+            setattr(market_data_modified, attribute_to_modify_1, d1)
+            setattr(market_data_modified, attribute_to_modify_2, d2)
 
         # General case
         else:
-            d1 = getattr(market_data, attribute_to_modify) + d
-            setattr(market_data, attribute_to_modify, d1)
+            d1 = getattr(market_data_modified, attribute_to_modify) + d
+            setattr(market_data_modified, attribute_to_modify, d1)
 
         # Initialization of the new Tree and valuation
 
-        new_tree.__init__(
-            num_steps=self.tree.num_steps, market_data=market_data, option=option
+        new_tree = Tree(
+            num_steps=self.tree.num_steps,
+            market_data=market_data_modified,
+            option=option_modified,
+            alpha_parameter=self.tree.alpha_parameter,
+            pruning=self.tree.pruning,
+            epsilon=self.tree.epsilon,
         )
-        new_tree.price_option()
+
+        new_tree.price()
 
         return new_tree
 
@@ -126,10 +131,14 @@ class EmpiricalGreeks:
         # In case we have not previously calculated the delta of the option.
         if not hasattr(self, "price_new_tree_ds_1"):
             new_tree_1 = self._price_tree_shock("spot_price", ds)
+            if new_tree_1.option_price is None:
+                raise ValueError("Option price not calculated")
             self.price_new_tree_ds_1 = new_tree_1.option_price
 
         if not hasattr(self, "price_new_tree_ds_2"):
             new_tree_2 = self._price_tree_shock("spot_price", neg_ds)
+            if new_tree_2.option_price is None:
+                raise ValueError("Option price not calculated")
             self.price_new_tree_ds_2 = new_tree_2.option_price
 
         if (

@@ -23,7 +23,7 @@ class TreeGraph:
 
         # In case the Tree provided as input has not been priced
         if self.tree.option_price is None:
-            self.tree.price_option()
+            self.tree.price()
 
         if self.tree.num_steps > 100:
             raise ValueError(
@@ -43,7 +43,9 @@ class TreeGraph:
         queue = [self.tree.root]
 
         # the barrier level
-        barrier_level = self.tree.option.barrier.barrier_level if self.tree.option.barrier else 0
+        barrier_level = (
+            self.tree.option.barrier.barrier_level if self.tree.option.barrier else 0
+        )
 
         # Determine the max and min prices of the underlying to adjust the scale
         min_price, max_price = float("inf"), float("-inf")
@@ -66,7 +68,9 @@ class TreeGraph:
                 and node.spot_price == 0
                 and node.cumulative_p == 0
             ):
-                intrinsic_value = node.intrinsic_value if node.intrinsic_value is not None else 0.0
+                intrinsic_value = (
+                    node.intrinsic_value if node.intrinsic_value is not None else 0.0
+                )
                 node_label = f"Intrinsic Value : {intrinsic_value:.2f}<br>Spot Price : {node.spot_price:.2f}<br>Cumulative Probability : {node.cumulative_p:.6f}"
                 labels[node] = node_label
                 positions[node] = (node.tree_position, y)
