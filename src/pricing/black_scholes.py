@@ -1,5 +1,3 @@
-# %% Imports
-
 import numpy as np
 from scipy.stats import norm
 
@@ -7,11 +5,13 @@ from src.pricing.pricer import Pricer
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 
-# %% Classes
-
 
 class BlackScholes(Pricer):
-    def __init__(self, market_data: MarketData, option: Option):
+    def __init__(
+        self,
+        market_data: MarketData,
+        option: Option,
+    ) -> None:
         self.market_data = market_data
         self.option = option
         self.is_european = not self.option.is_american
@@ -58,34 +58,24 @@ class BlackScholes(Pricer):
     def theta(self):
         if self.option_type == "Call":
             theta = -(
-                self.spot_price
-                * norm.pdf(self.d1, 0, 1)
-                * self.volatility
-                / 2
-                * np.sqrt(self.maturity)
+                (self.spot_price * norm.pdf(self.d1, 0, 1) * self.volatility)
+                / (2 * np.sqrt(self.maturity))
             ) - self.risk_free_rate * self.strike * np.exp(
                 -self.risk_free_rate * self.maturity
             ) * norm.cdf(self.d2, 0, 1)
         else:
             theta = -(
-                self.spot_price
-                * norm.pdf(self.d1, 0, 1)
-                * self.volatility
-                / 2
-                * np.sqrt(self.maturity)
+                (self.spot_price * norm.pdf(self.d1, 0, 1) * self.volatility)
+                / (2 * np.sqrt(self.maturity))
             ) + self.risk_free_rate * self.strike * np.exp(
                 -self.risk_free_rate * self.maturity
             ) * norm.cdf(-self.d2, 0, 1)
 
-        return theta / 100
+        return theta / self.option.calendar_base_convention
 
     def gamma(self):
-        return (
-            norm.pdf(self.d1, 0, 1)
-            / self.spot_price
-            * self.volatility
-            * np.sqrt(self.maturity)
-            * 1000
+        return norm.pdf(self.d1, 0, 1) / (
+            self.spot_price * self.volatility * np.sqrt(self.maturity)
         )
 
     def vega(self):
