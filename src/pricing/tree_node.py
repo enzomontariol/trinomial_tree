@@ -4,7 +4,7 @@ import numpy as np
 
 from src.pricing.market import MarketData
 from src.pricing.option import Option
-from src.pricing.enums import CalendarBaseConvention, BarrierType, BarrierDirection
+from src.pricing.enums import BarrierType, BarrierDirection
 from src.pricing.pricer import Pricer
 from src.pricing.config import PricingConfig
 
@@ -15,10 +15,7 @@ class Tree(Pricer):
         num_steps: int,
         market_data: MarketData,
         option: Option,
-        config: PricingConfig | None = None,
-        alpha_parameter: float | None = None,
-        pruning: bool | None = None,
-        epsilon: float | None = None,
+        config: PricingConfig = PricingConfig(),  # if none is provided, use defaults
     ) -> None:
         """Initialization of the class
 
@@ -34,18 +31,7 @@ class Tree(Pricer):
         self.num_steps = num_steps
         self.market_data = market_data
         self.option = option
-
-        # Initialize config
-        self.config = config if config is not None else PricingConfig()
-
-        # Apply overrides if provided
-        if alpha_parameter is not None:
-            self.config.alpha_parameter = alpha_parameter
-        if pruning is not None:
-            self.config.pruning = pruning
-        if epsilon is not None:
-            self.config.epsilon = epsilon
-
+        self.config = config
         self.delta_t = self._calculate_delta_t()
         self.capitalization_factor = self._calculate_capitalization_factor()
         self.discount_factor = self._calculate_discount_factor()

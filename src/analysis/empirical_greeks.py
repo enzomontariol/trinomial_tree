@@ -77,9 +77,7 @@ class EmpiricalGreeks:
             num_steps=self.tree.num_steps,
             market_data=market_data_modified,
             option=option_modified,
-            alpha_parameter=self.tree.alpha_parameter,
-            pruning=self.tree.pruning,
-            epsilon=self.tree.epsilon,
+            config=self.tree.config,
         )
 
         new_tree.price()
