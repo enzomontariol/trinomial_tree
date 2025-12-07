@@ -103,7 +103,7 @@ class EmpiricalGreeks:
         if new_tree_1.option_price is None or new_tree_2.option_price is None:
             raise ValueError("Option price not calculated")
 
-        delta = (new_tree_1.option_price - new_tree_2.option_price) / 2 * ds
+        delta = (new_tree_1.option_price - new_tree_2.option_price) / (2 * ds)
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "price_new_tree_ds_1"):
@@ -146,7 +146,7 @@ class EmpiricalGreeks:
         ):
             raise ValueError("Option price not calculated")
 
-        # Calculation of gamma according to the formula of a centered finite difference
+        # Calculation of gamma according to the formula of a second-order centered finite difference
         gamma = (
             self.price_new_tree_ds_1
             - 2 * self.tree.option_price
