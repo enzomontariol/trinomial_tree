@@ -78,7 +78,7 @@ class TestGreeksConvergenceToBlackScholes:
 
         self.bs = BlackScholes(market_data=self.market_data, option=self.option)
         self.tree = Tree(
-            num_steps=1000, market_data=self.market_data, option=self.option
+            num_steps=500, market_data=self.market_data, option=self.option
         )
         self.empirical_greeks = EmpiricalGreeks(tree=self.tree)
 
