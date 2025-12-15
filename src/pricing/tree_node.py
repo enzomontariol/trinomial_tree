@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import numpy as np
 
 from src.pricing.market import MarketData
@@ -116,8 +117,12 @@ class Tree(Pricer):
             temp_future_center = next_node
 
             # We iterate starting from the trunk and moving towards the upper extremity of a column in order to create Nodes on the next column
-            while not temp_center.up is None:
+            while temp_center.up is not None:
                 temp_center = temp_center.up
+                if temp_future_center is None:
+                    raise ValueError(
+                        "Tree structure inconsistency: future node is None"
+                    )
                 temp_center._create_next_block(temp_future_center)
                 temp_future_center = temp_future_center.up
 
@@ -132,8 +137,12 @@ class Tree(Pricer):
             temp_future_center = next_node
 
             # We iterate starting from the trunk and moving towards the lower extremity of a column in order to create Nodes on the next column
-            while not temp_center.down is None:
+            while temp_center.down is not None:
                 temp_center = temp_center.down
+                if temp_future_center is None:
+                    raise ValueError(
+                        "Tree structure inconsistency: future node is None"
+                    )
                 temp_center._create_next_block(temp_future_center)
                 temp_future_center = temp_future_center.down
 
@@ -176,6 +185,32 @@ class Tree(Pricer):
         Returns:
             float: The calculated option price.
         """
+        if (
+            self.option.barrier is not None
+            and self.option.barrier.barrier_type == BarrierType.knock_in
+        ):
+            # Use Put-Call Parity for Barrier Options: In + Out = Vanilla
+            # Price = Vanilla - Out
+
+            # 1. Price Vanilla
+            vanilla_option = copy.deepcopy(self.option)
+            vanilla_option.barrier = None
+            vanilla_tree = Tree(
+                self.num_steps, self.market_data, vanilla_option, self.config
+            )
+            vanilla_price = vanilla_tree.price()
+
+            # 2. Price Knock-Out
+            out_option = copy.deepcopy(self.option)
+            if out_option.barrier is None:
+                raise ValueError("Barrier should not be None for Knock-In option")
+            out_option.barrier.barrier_type = BarrierType.knock_out
+            out_tree = Tree(self.num_steps, self.market_data, out_option, self.config)
+            out_price = out_tree.price()
+
+            self.option_price = vanilla_price - out_price
+            return self.option_price
+
         self._build_tree()
 
         if self.root is None:
@@ -302,7 +337,7 @@ class Node:
         Returns:
             Node: the down Node
         """
-        if self.down == None:
+        if self.down is None:
             self.down = Node(
                 self.spot_price / self.tree.alpha, self.tree, self.tree_position
             )
@@ -315,7 +350,7 @@ class Node:
         Returns:
             Node: the up Node
         """
-        if self.up == None:
+        if self.up is None:
             self.up = Node(
                 self.spot_price * self.tree.alpha, self.tree, self.tree_position
             )
@@ -487,5 +522,26 @@ class Node:
             if self.tree.option.is_american:
                 payoff_dt = self._calculate_payoff()
                 intrinsic_value = max(payoff_dt, intrinsic_value)
+
+            # Handle Knock-Out Barrier (Path Dependent)
+            if (
+                self.tree.option.barrier is not None
+                and self.tree.option.barrier.barrier_type == BarrierType.knock_out
+            ):
+                # Check if barrier is breached at this node
+                is_breached = False
+                if (
+                    self.tree.option.barrier.barrier_direction == BarrierDirection.up
+                    and self.spot_price >= self.tree.option.barrier.barrier_level
+                ):
+                    is_breached = True
+                elif (
+                    self.tree.option.barrier.barrier_direction == BarrierDirection.down
+                    and self.spot_price <= self.tree.option.barrier.barrier_level
+                ):
+                    is_breached = True
+
+                if is_breached:
+                    intrinsic_value = 0  # Assuming 0 rebate
 
             self.intrinsic_value = intrinsic_value
