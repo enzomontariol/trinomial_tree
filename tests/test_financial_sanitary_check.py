@@ -254,6 +254,12 @@ class TestFinancialSanitaryCheck:
             f"American option price {american_price:.4f} is less than European option price {european_price:.4f}"
         )
 
+        # Specific case: American Call on non-dividend paying stock should equal European Call
+        if is_call and dividend_amount == 0 and interest_rate >= 0:
+            assert abs(american_price - european_price) < 1e-3, (
+                f"American Call (No Div) should equal European Call: Amer={american_price:.4f}, Euro={european_price:.4f}"
+            )
+
     def test_no_arbitrage_bounds(
         self,
         is_call: bool,
