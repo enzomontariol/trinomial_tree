@@ -389,6 +389,8 @@ class InductiveTree(Pricer):
 
             # Update values for next iteration
             current_values = np.maximum(continuation_value, intrinsic_value)
-            current_values = self._apply_barrier_conditions(current_values, current_spots)
+            current_values = self._apply_barrier_conditions(
+                current_values, current_spots
+            )
 
         return pd.DataFrame(boundary_data).sort_values("Step")
