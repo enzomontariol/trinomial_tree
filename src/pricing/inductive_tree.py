@@ -5,8 +5,9 @@ from src.pricing.pricer import Pricer
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.config import PricingConfig
-from src.pricing.enums import BarrierType, BarrierDirection
+from src.pricing.enums import BarrierType
 from src.pricing.barrier import Barrier
+from src.pricing.payoff import PayoffStrategy, VanillaPayoff, BarrierPayoff
 
 
 class InductiveTree(Pricer):
@@ -61,6 +62,8 @@ class InductiveTree(Pricer):
         self.alpha = self._calculate_alpha()
 
         self._validate_probabilities()
+
+        self.payoff_strategy = self._get_payoff_strategy()
 
     def _validate_inputs(self) -> None:
         """Validates the input parameters for the tree."""
@@ -152,6 +155,12 @@ class InductiveTree(Pricer):
         )
         return alpha
 
+    def _get_payoff_strategy(self) -> PayoffStrategy:
+        """Factory method to select the correct payoff strategy."""
+        if self.option.barrier is not None:
+            return BarrierPayoff()
+        return VanillaPayoff()
+
     def _calculate_dividend_pv(self, step: int) -> float:
         """Calculates the present value of the future dividend at a given step.
 
@@ -228,49 +237,6 @@ class InductiveTree(Pricer):
 
         return np.array([p_u, p_m, p_d])
 
-    def _calculate_intrinsic_value(self, spots: np.ndarray) -> np.ndarray:
-        """Calculates the intrinsic value of the option for a given set of spot prices.
-
-        Args:
-            spots (np.ndarray): Array of spot prices.
-
-        Returns:
-            np.ndarray: Array of intrinsic values (max(S-K, 0) or max(K-S, 0)).
-        """
-        if self.option.is_call:
-            return np.maximum(spots - self.option.strike_price, 0.0)
-        else:
-            return np.maximum(self.option.strike_price - spots, 0.0)
-
-    def _apply_barrier_conditions(
-        self, option_values: np.ndarray, spots: np.ndarray
-    ) -> np.ndarray:
-        """Applies barrier conditions to the option values at a given step.
-
-        Args:
-            option_values (np.ndarray): The current option values at this step.
-            spots (np.ndarray): The spot prices at this step.
-
-        Returns:
-            np.ndarray: The option values adjusted for barrier conditions.
-        """
-        if self.option.barrier is None:
-            return option_values
-
-        barrier = self.option.barrier
-
-        if barrier.barrier_direction == BarrierDirection.up:
-            breached = spots >= barrier.barrier_level
-        elif barrier.barrier_direction == BarrierDirection.down:
-            breached = spots <= barrier.barrier_level
-        else:
-            return option_values
-
-        if barrier.barrier_type == BarrierType.knock_out:
-            option_values[breached] = 0.0
-
-        return option_values
-
     def price(self) -> float:
         """
         Orchestrates the pricing process using iterative backward induction.
@@ -305,8 +271,12 @@ class InductiveTree(Pricer):
 
         # Initialize at maturity
         current_spots = self._get_spots_at_step(self.num_steps)
-        current_values = self._calculate_intrinsic_value(current_spots)
-        current_values = self._apply_barrier_conditions(current_values, current_spots)
+        current_values = self.payoff_strategy.calculate_intrinsic_value(
+            current_spots, self.option
+        )
+        current_values = self.payoff_strategy.apply_conditions(
+            current_values, current_spots, self.option
+        )
 
         # Backward induction
         for step in range(self.num_steps - 1, -1, -1):
@@ -322,13 +292,15 @@ class InductiveTree(Pricer):
             )
 
             if self.option.is_american:
-                intrinsic_value = self._calculate_intrinsic_value(current_spots)
+                intrinsic_value = self.payoff_strategy.calculate_intrinsic_value(
+                    current_spots, self.option
+                )
                 current_values = np.maximum(continuation_value, intrinsic_value)
             else:
                 current_values = continuation_value
 
-            current_values = self._apply_barrier_conditions(
-                current_values, current_spots
+            current_values = self.payoff_strategy.apply_conditions(
+                current_values, current_spots, self.option
             )
 
         return current_values[0]
@@ -380,8 +352,12 @@ class InductiveTree(Pricer):
 
         # Initialize at maturity
         current_spots = self._get_spots_at_step(self.num_steps)
-        current_values = self._calculate_intrinsic_value(current_spots)
-        current_values = self._apply_barrier_conditions(current_values, current_spots)
+        current_values = self.payoff_strategy.calculate_intrinsic_value(
+            current_spots, self.option
+        )
+        current_values = self.payoff_strategy.apply_conditions(
+            current_values, current_spots, self.option
+        )
 
         boundary_data = []
 
@@ -398,7 +374,9 @@ class InductiveTree(Pricer):
                 p_u * V_up + p_m * V_mid + p_d * V_down
             )
 
-            intrinsic_value = self._calculate_intrinsic_value(current_spots)
+            intrinsic_value = self.payoff_strategy.calculate_intrinsic_value(
+                current_spots, self.option
+            )
 
             # Determine Exercise Decision
             # Exercise if Intrinsic > Continuation + epsilon
@@ -422,8 +400,8 @@ class InductiveTree(Pricer):
 
             # Update values for next iteration
             current_values = np.maximum(continuation_value, intrinsic_value)
-            current_values = self._apply_barrier_conditions(
-                current_values, current_spots
+            current_values = self.payoff_strategy.apply_conditions(
+                current_values, current_spots, self.option
             )
 
         return pd.DataFrame(boundary_data).sort_values("Step")
