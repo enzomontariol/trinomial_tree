@@ -25,9 +25,7 @@ class Tree(Pricer):
             market_data (MarketData): Class used to represent market data.
             option (Option): Class used to represent an option and its parameters.
             config (PricingConfig, optional): Configuration object.
-            alpha_parameter (float, optional): Override for alpha parameter.
-            pruning (bool, optional): Override for pruning.
-            epsilon (float, optional): Override for epsilon.
+
         """
         self.num_steps = num_steps
         self.market_data = market_data
@@ -306,7 +304,6 @@ class Node:
             raise ValueError("Negative probability")
 
         if not np.isclose(p_down + p_up + p_mid, self.tree.config.sum_proba, atol=1e-2):
-            print(f"p_down : {p_down}, p_up : {p_up}, p_mid : {p_mid}")
             raise ValueError(
                 f"The sum of probabilities must be equal to {self.tree.config.sum_proba}"
             )
