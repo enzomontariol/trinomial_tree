@@ -3,7 +3,7 @@ from typing import Any, Dict, List
 from src.analysis.experiments.framework import ParallelSweepExperiment
 from src.pricing.market import MarketData
 from src.pricing.option import Option
-from src.pricing.tree_node import Tree
+from src.pricing.inductive_tree import InductiveTree
 
 
 class PutCallParityExperiment(ParallelSweepExperiment):
@@ -51,11 +51,15 @@ class PutCallParityExperiment(ParallelSweepExperiment):
         put_option = self._create_european_option(self.base_option, is_call=False)
 
         # Price Call
-        tree_call = Tree(num_steps=N, market_data=market_data, option=call_option)
+        tree_call = InductiveTree(
+            num_steps=N, market_data=market_data, option=call_option
+        )
         C_tree = tree_call.price()
 
         # Price Put
-        tree_put = Tree(num_steps=N, market_data=market_data, option=put_option)
+        tree_put = InductiveTree(
+            num_steps=N, market_data=market_data, option=put_option
+        )
         P_tree = tree_put.price()
 
         # Theoretical Parity

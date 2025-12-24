@@ -1,7 +1,7 @@
 import datetime as dt
 import pytest
 
-from src.pricing import BlackScholes, MarketData, Option, Tree
+from src.pricing import BlackScholes, MarketData, Option, InductiveTree
 from src.analysis import EmpiricalGreeks
 
 
@@ -45,7 +45,7 @@ class TestPriceConvergenceToBlackScholes:
         )
 
         bs = BlackScholes(market_data=market_data, option=option)
-        tree = Tree(num_steps=500, market_data=market_data, option=option)
+        tree = InductiveTree(num_steps=500, market_data=market_data, option=option)
 
         bs_price = bs.price()
         tree_price = tree.price()
@@ -77,7 +77,7 @@ class TestGreeksConvergenceToBlackScholes:
         )
 
         self.bs = BlackScholes(market_data=self.market_data, option=self.option)
-        self.tree = Tree(
+        self.tree = InductiveTree(
             num_steps=500, market_data=self.market_data, option=self.option
         )
         self.empirical_greeks = EmpiricalGreeks(tree=self.tree)

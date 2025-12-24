@@ -140,66 +140,34 @@ class InductiveTree(Pricer):
             )
         return 0.0
 
-    def _compute_forward_prices(self, spot_price: np.ndarray) -> np.ndarray:
-        """Function used to compute the forward price at each node of the tree.
+    def _get_spots_at_step(self, step: int) -> np.ndarray:
+        """Calculates the spot prices at a given step using the analytical formula.
+
+        S_{i, j} = (S_0 - PV(D_0)) * M^i * alpha^(i-j) + PV(D_i)
+        where j is the array index from 0 to 2*i.
 
         Args:
-            spot_price (np.ndarray): The spot prices at a given layer of the tree.
+            step (int): The step number.
 
         Returns:
-            np.ndarray: The forward prices at each node of the tree.
+            np.ndarray: The array of spot prices at the given step.
         """
-        return spot_price * self.capitalization_factor
+        S_clean_0 = self.market_data.spot_price - self._calculate_dividend_pv(0)
 
-    def _build_spots_matrix(self) -> np.ndarray:
-        """Function used to build the layers of the tree-like structure.
+        # Indices j go from 0 to 2*step
+        j = np.arange(2 * step + 1)
 
-        We use the Escrowed Dividend method:
-        1. At each step, we strip the PV of future dividends from the spot price to get a 'clean' spot price.
-        2. We evolve this 'clean' spot price using the standard recombining tree logic.
-        3. We add back the PV of future dividends to the evolved nodes to get the actual market spot prices.
+        # Powers of alpha: i - j
+        powers = step - j
 
-        Returns:
-            np.ndarray: The matrix of spot prices at each node.
-        """
-        width = 2 * self.num_steps + 1
-        center = self.num_steps
+        # Calculate clean spots
+        growth_factor = self.capitalization_factor**step
+        spots_clean = S_clean_0 * growth_factor * (self.alpha**powers)
 
-        spots = np.empty(
-            (self.num_steps + 1, width), dtype=np.float64
-        )  # pre-allocate memory for spots matrix
-        spots.fill(np.nan)  # fill with NaN values
+        # Add PV of dividends at current step
+        spots_dirty = spots_clean + self._calculate_dividend_pv(step)
 
-        spots[0, center] = (
-            self.market_data.spot_price
-        )  # set initial spot price at the root of the tree
-
-        for step in range(1, self.num_steps + 1):
-            previous_layer = spots[step - 1]
-            current_layer = spots[step]
-
-            prev_div_pv = self._calculate_dividend_pv(step - 1)
-            curr_div_pv = self._calculate_dividend_pv(step)
-
-            previous_slice = slice(center - (step - 1), center + (step))
-            current_slice = slice(center - step, center + step + 1)
-
-            previous_act = previous_layer[previous_slice]
-            current_act = current_layer[current_slice]
-
-            previous_act_clean = previous_act - prev_div_pv
-
-            current_act[0] = (
-                previous_act_clean[0] * self.capitalization_factor * self.alpha
-            ) + curr_div_pv
-            current_act[-1] = (
-                previous_act_clean[-1] * self.capitalization_factor / self.alpha
-            ) + curr_div_pv
-            current_act[1:-1] = (
-                self._compute_forward_prices(previous_act_clean) + curr_div_pv
-            )
-
-        return spots
+        return spots_dirty
 
     def _build_probabilities_matrix(self) -> np.ndarray:
         """Calculates the transition probabilities for the trinomial tree.
@@ -226,10 +194,6 @@ class InductiveTree(Pricer):
 
         return np.array([p_u, p_m, p_d])
 
-    def _build_tree(self) -> None:
-        """Function used to build the tree-like structure"""
-        return None
-
     def _calculate_intrinsic_value(self, spots: np.ndarray) -> np.ndarray:
         """Calculates the intrinsic value of the option for a given set of spot prices.
 
@@ -245,15 +209,13 @@ class InductiveTree(Pricer):
             return np.maximum(self.option.strike_price - spots, 0.0)
 
     def _apply_barrier_conditions(
-        self, option_values: np.ndarray, spots: np.ndarray, step: int, center: int
+        self, option_values: np.ndarray, spots: np.ndarray
     ) -> np.ndarray:
         """Applies barrier conditions to the option values at a given step.
 
         Args:
             option_values (np.ndarray): The current option values at this step.
             spots (np.ndarray): The spot prices at this step.
-            step (int): The current time step index.
-            center (int): The center index of the arrays.
 
         Returns:
             np.ndarray: The option values adjusted for barrier conditions.
@@ -262,26 +224,23 @@ class InductiveTree(Pricer):
             return option_values
 
         barrier = self.option.barrier
-        current_slice = slice(center - step, center + step + 1)
-        current_spots = spots[step, current_slice]
-        current_values = option_values[step, current_slice]
 
         if barrier.barrier_direction == BarrierDirection.up:
-            breached = current_spots >= barrier.barrier_level
+            breached = spots >= barrier.barrier_level
         elif barrier.barrier_direction == BarrierDirection.down:
-            breached = current_spots <= barrier.barrier_level
+            breached = spots <= barrier.barrier_level
         else:
             return option_values
 
         if barrier.barrier_type == BarrierType.knock_out:
-            current_values[breached] = 0.0
+            option_values[breached] = 0.0
 
-        option_values[step, current_slice] = current_values
         return option_values
 
     def price(self) -> float:
         """
         Orchestrates the pricing process using iterative backward induction.
+        Optimized for O(N) memory usage.
 
         Returns:
             float: The estimated price of the option.
@@ -307,37 +266,35 @@ class InductiveTree(Pricer):
 
             return vanilla_price - ko_price
 
-        spots = self._build_spots_matrix()
         probs = self._build_probabilities_matrix()
         p_u, p_m, p_d = probs[0], probs[1], probs[2]
 
-        option_values = np.full_like(spots, np.nan)
-        center = self.num_steps
+        # Initialize at maturity
+        current_spots = self._get_spots_at_step(self.num_steps)
+        current_values = self._calculate_intrinsic_value(current_spots)
+        current_values = self._apply_barrier_conditions(current_values, current_spots)
 
-        option_values[-1, :] = self._calculate_intrinsic_value(spots[-1, :])
-        self._apply_barrier_conditions(option_values, spots, self.num_steps, center)
-
+        # Backward induction
         for step in range(self.num_steps - 1, -1, -1):
-            current_slice = slice(center - step, center + step + 1)
-            valid_next_indices = slice(center - step - 1, center + step + 2)
-            V_next = option_values[step + 1, valid_next_indices]
+            next_values = current_values
+            current_spots = self._get_spots_at_step(step)
 
-            V_up = V_next[:-2]
-            V_mid = V_next[1:-1]
-            V_down = V_next[2:]
+            V_up = next_values[:-2]
+            V_mid = next_values[1:-1]
+            V_down = next_values[2:]
 
             continuation_value = self.discount_factor * (
                 p_u * V_up + p_m * V_mid + p_d * V_down
             )
 
             if self.option.is_american:
-                current_spots = spots[step, current_slice]
                 intrinsic_value = self._calculate_intrinsic_value(current_spots)
-                temp_values = np.maximum(continuation_value, intrinsic_value)
+                current_values = np.maximum(continuation_value, intrinsic_value)
             else:
-                temp_values = continuation_value
+                current_values = continuation_value
 
-            option_values[step, current_slice] = temp_values
-            self._apply_barrier_conditions(option_values, spots, step, center)
+            current_values = self._apply_barrier_conditions(
+                current_values, current_spots
+            )
 
-        return option_values[0, center]
+        return current_values[0]

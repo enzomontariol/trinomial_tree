@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 import numpy as np
 
-from src.pricing import MarketData, Option, Tree, Barrier
+from src.pricing import MarketData, Option, InductiveTree, Barrier
 from src.pricing.enums import BarrierType, BarrierDirection
 
 
@@ -41,7 +41,7 @@ class TestSensitivityMonotony:
             pricing_date=params["start_date"],
         )
 
-        tree = Tree(num_steps=500, market_data=market_data, option=option)
+        tree = InductiveTree(num_steps=500, market_data=market_data, option=option)
         return tree.price()
 
     @pytest.mark.parametrize(
@@ -168,8 +168,12 @@ class TestFinancialSanitaryCheck:
             pricing_date=start_date,
         )
 
-        tree_call = Tree(num_steps=100, market_data=market_data, option=call_option)
-        tree_put = Tree(num_steps=100, market_data=market_data, option=put_option)
+        tree_call = InductiveTree(
+            num_steps=100, market_data=market_data, option=call_option
+        )
+        tree_put = InductiveTree(
+            num_steps=100, market_data=market_data, option=put_option
+        )
 
         call_price = tree_call.price()
         put_price = tree_put.price()
@@ -236,10 +240,10 @@ class TestFinancialSanitaryCheck:
             pricing_date=start_date,
         )
 
-        tree_european = Tree(
+        tree_european = InductiveTree(
             num_steps=100, market_data=market_data, option=european_option
         )
-        tree_american = Tree(
+        tree_american = InductiveTree(
             num_steps=100, market_data=market_data, option=american_option
         )
 
@@ -282,7 +286,7 @@ class TestFinancialSanitaryCheck:
             pricing_date=start_date,
         )
 
-        tree = Tree(num_steps=100, market_data=market_data, option=option)
+        tree = InductiveTree(num_steps=100, market_data=market_data, option=option)
         price = tree.price()
 
         # Calculate Present Values
@@ -348,7 +352,7 @@ class TestFinancialSanitaryCheck:
             pricing_date=start_date,
         )
 
-        tree = Tree(num_steps=100, market_data=market_data, option=option)
+        tree = InductiveTree(num_steps=100, market_data=market_data, option=option)
         price = tree.price()
 
         days_to_maturity = (maturity_date - start_date).days
@@ -419,7 +423,7 @@ class TestBarrierImpact:
             pricing_date=start_date,
         )
 
-        tree_vanilla = Tree(
+        tree_vanilla = InductiveTree(
             num_steps=100, market_data=market_data, option=vanilla_option
         )
         vanilla_price = tree_vanilla.price()
@@ -440,7 +444,7 @@ class TestBarrierImpact:
             pricing_date=start_date,
         )
 
-        tree_barrier = Tree(
+        tree_barrier = InductiveTree(
             num_steps=100, market_data=market_data, option=barrier_option
         )
         barrier_price = tree_barrier.price()

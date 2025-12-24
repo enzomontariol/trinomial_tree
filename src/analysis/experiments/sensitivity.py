@@ -4,7 +4,7 @@ from src.analysis.experiments.framework import ParallelSweepExperiment
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.black_scholes import BlackScholes
-from src.pricing.tree_node import Tree
+from src.pricing.inductive_tree import InductiveTree
 
 
 class SpotSensitivityExperiment(ParallelSweepExperiment):
@@ -54,12 +54,16 @@ class SpotSensitivityExperiment(ParallelSweepExperiment):
         bs_gamma = bs.gamma()
 
         # Tree Price
-        tree = Tree(num_steps=self.N, market_data=market_data, option=self.option)
+        tree = InductiveTree(
+            num_steps=self.N, market_data=market_data, option=self.option
+        )
         tree_price = tree.price()
 
-        tree_delta = self._calculate_tree_delta(tree)
+        tree_delta = self._calculate_tree_delta_fd(market_data, self.option, self.N)
         tree_gamma_fd = self._calculate_tree_gamma_fd(market_data, self.option, self.N)
-        tree_gamma_internal = self._calculate_tree_gamma_internal(tree)
+
+        # Internal Gamma not supported with InductiveTree (no node access)
+        tree_gamma_internal = 0.0
 
         return {
             "S0": S0,
@@ -72,53 +76,13 @@ class SpotSensitivityExperiment(ParallelSweepExperiment):
             "BS_Gamma": bs_gamma,
         }
 
-    def _calculate_tree_delta(self, tree: Tree) -> float:
-        if tree.root and tree.root.future_up and tree.root.future_down:
-            C_u = tree.root.future_up.intrinsic_value
-            C_d = tree.root.future_down.intrinsic_value
-            S_u = tree.root.future_up.spot_price
-            S_d = tree.root.future_down.spot_price
-            if C_u is not None and C_d is not None and S_u != S_d:
-                return (C_u - C_d) / (S_u - S_d)
-        return 0.0
-
-    def _calculate_tree_gamma_internal(self, tree: Tree) -> float:
-        """
-        Calculates Gamma from the tree's internal nodes at t=1.
-        Gamma ~ (Delta_u - Delta_d) / (S_u - S_d)
-        """
-        if not (tree.root and tree.root.future_up and tree.root.future_down):
-            return 0.0
-
-        node_u = tree.root.future_up
-        node_d = tree.root.future_down
-
-        # Calculate Delta at Up node
-        delta_u = 0.0
-        if node_u.future_up and node_u.future_down:
-            C_uu = node_u.future_up.intrinsic_value
-            C_ud = node_u.future_down.intrinsic_value
-            S_uu = node_u.future_up.spot_price
-            S_ud = node_u.future_down.spot_price
-            if C_uu is not None and C_ud is not None and S_uu != S_ud:
-                delta_u = (C_uu - C_ud) / (S_uu - S_ud)
-
-        # Calculate Delta at Down node
-        delta_d = 0.0
-        if node_d.future_up and node_d.future_down:
-            C_du = node_d.future_up.intrinsic_value
-            C_dd = node_d.future_down.intrinsic_value
-            S_du = node_d.future_up.spot_price
-            S_dd = node_d.future_down.spot_price
-            if C_du is not None and C_dd is not None and S_du != S_dd:
-                delta_d = (C_du - C_dd) / (S_du - S_dd)
-
-        S_u = node_u.spot_price
-        S_d = node_d.spot_price
-
-        if S_u != S_d:
-            return (delta_u - delta_d) / (S_u - S_d)
-        return 0.0
+    def _calculate_tree_delta_fd(self, market_data, option, N) -> float:
+        dS = market_data.spot_price * 0.01
+        md_up = self._clone_market_data(market_data, market_data.spot_price + dS)
+        md_down = self._clone_market_data(market_data, market_data.spot_price - dS)
+        p_up = InductiveTree(N, md_up, option).price()
+        p_down = InductiveTree(N, md_down, option).price()
+        return (p_up - p_down) / (2 * dS)
 
     def _calculate_tree_gamma_fd(self, market_data, option, N) -> float:
         # Finite difference
@@ -127,9 +91,9 @@ class SpotSensitivityExperiment(ParallelSweepExperiment):
         md_up = self._clone_market_data(market_data, market_data.spot_price + dS)
         md_down = self._clone_market_data(market_data, market_data.spot_price - dS)
 
-        p_up = Tree(N, md_up, option).price()
-        p_mid = Tree(N, market_data, option).price()
-        p_down = Tree(N, md_down, option).price()
+        p_up = InductiveTree(N, md_up, option).price()
+        p_mid = InductiveTree(N, market_data, option).price()
+        p_down = InductiveTree(N, md_down, option).price()
 
         return (p_up - 2 * p_mid + p_down) / (dS**2)
 
@@ -186,7 +150,9 @@ class VolatilitySensitivityExperiment(ParallelSweepExperiment):
         bs = BlackScholes(market_data, self.option)
         bs_price = bs.price()
 
-        tree = Tree(num_steps=self.N, market_data=market_data, option=self.option)
+        tree = InductiveTree(
+            num_steps=self.N, market_data=market_data, option=self.option
+        )
         tree_price = tree.price()
 
         error = abs(tree_price - bs_price)

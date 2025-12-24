@@ -4,7 +4,7 @@ from src.analysis.experiments.framework import ParallelSweepExperiment
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.black_scholes import BlackScholes
-from src.pricing.tree_node import Tree
+from src.pricing.inductive_tree import InductiveTree
 
 
 class ConvergenceExperiment(ParallelSweepExperiment):
@@ -40,7 +40,7 @@ class ConvergenceExperiment(ParallelSweepExperiment):
         start_time = time.time()
 
         # Instantiate Tree with N steps
-        tree_pricer = Tree(
+        tree_pricer = InductiveTree(
             num_steps=N, market_data=self.market_data, option=self.option
         )
         tree_price = tree_pricer.price()

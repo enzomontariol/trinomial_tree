@@ -2,13 +2,13 @@ from typing import Union
 import datetime as dt
 import copy
 
-from src.pricing.tree_node import Tree
+from src.pricing.inductive_tree import InductiveTree
 
 
 class EmpiricalGreeks:
     def __init__(
         self,
-        tree: Tree,
+        tree: InductiveTree,
         var_s: float = 0.01,
         var_v: float = 0.01,
         var_t: int = 1,
@@ -17,7 +17,7 @@ class EmpiricalGreeks:
         """Initialization of the class
 
         Args:
-            tree (Tree): The Tree for which the greeks calculation will be performed
+            tree (InductiveTree): The Tree for which the greeks calculation will be performed
             var_s (float, optional): The variation applied to the underlying price (in percentage of the price). Defaults to 0.01.
             var_v (float, optional): The variation of the volatility level (in percentage points here). Defaults to 0.01.
             var_t (int, optional): The variation of the pricing date (in number of days). Defaults to 1.
@@ -30,13 +30,11 @@ class EmpiricalGreeks:
         self.var_t = var_t
         self.var_r = var_r
 
-        if self.tree.option_price is None:
-            # In case the user provides an input Tree that has not been priced yet.
-            self.tree.price()
+        self.base_price = self.tree.price()
 
     def _price_tree_shock(
         self, attribute_to_modify: str, d: Union[float, dt.date]
-    ) -> Tree:
+    ) -> float:
         """Method allowing us to value a new option by varying a given parameter.
 
         Args:
@@ -44,7 +42,7 @@ class EmpiricalGreeks:
             d (Union[float, dt.date]): Level of variation
 
         Returns:
-            Tree: The new Tree that has been priced all else equal.
+            float: The price of the new Tree that has been priced all else equal.
         """
 
         market_data_modified = copy.copy(self.tree.market_data)
@@ -73,16 +71,14 @@ class EmpiricalGreeks:
 
         # Initialization of the new Tree and valuation
 
-        new_tree = Tree(
+        new_tree = InductiveTree(
             num_steps=self.tree.num_steps,
             market_data=market_data_modified,
             option=option_modified,
             config=self.tree.config,
         )
 
-        new_tree.price()
-
-        return new_tree
+        return new_tree.price()
 
     def approximate_delta(self) -> float:
         """Calculation of the delta of our option, the partial derivative of the option price with respect to the underlying price.
@@ -96,22 +92,19 @@ class EmpiricalGreeks:
         neg_ds = -self.var_s * self.tree.market_data.spot_price
 
         # Valuation with the new parameters
-        new_tree_1 = self._price_tree_shock("spot_price", ds)
-        new_tree_2 = self._price_tree_shock("spot_price", neg_ds)
+        price_1 = self._price_tree_shock("spot_price", ds)
+        price_2 = self._price_tree_shock("spot_price", neg_ds)
 
         # Here, we calculate the delta from a centered finite difference
-        if new_tree_1.option_price is None or new_tree_2.option_price is None:
-            raise ValueError("Option price not calculated")
-
-        delta = (new_tree_1.option_price - new_tree_2.option_price) / (2 * ds)
+        delta = (price_1 - price_2) / (2 * ds)
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "price_new_tree_ds_1"):
-            self.price_new_tree_ds_1 = new_tree_1.option_price
+            self.price_new_tree_ds_1 = price_1
 
         # same here
         if not hasattr(self, "price_new_tree_ds_2"):
-            self.price_new_tree_ds_2 = new_tree_2.option_price
+            self.price_new_tree_ds_2 = price_2
 
         return delta
 
@@ -128,29 +121,14 @@ class EmpiricalGreeks:
 
         # In case we have not previously calculated the delta of the option.
         if not hasattr(self, "price_new_tree_ds_1"):
-            new_tree_1 = self._price_tree_shock("spot_price", ds)
-            if new_tree_1.option_price is None:
-                raise ValueError("Option price not calculated")
-            self.price_new_tree_ds_1 = new_tree_1.option_price
+            self.price_new_tree_ds_1 = self._price_tree_shock("spot_price", ds)
 
         if not hasattr(self, "price_new_tree_ds_2"):
-            new_tree_2 = self._price_tree_shock("spot_price", neg_ds)
-            if new_tree_2.option_price is None:
-                raise ValueError("Option price not calculated")
-            self.price_new_tree_ds_2 = new_tree_2.option_price
-
-        if (
-            self.price_new_tree_ds_1 is None
-            or self.price_new_tree_ds_2 is None
-            or self.tree.option_price is None
-        ):
-            raise ValueError("Option price not calculated")
+            self.price_new_tree_ds_2 = self._price_tree_shock("spot_price", neg_ds)
 
         # Calculation of gamma according to the formula of a second-order centered finite difference
         gamma = (
-            self.price_new_tree_ds_1
-            - 2 * self.tree.option_price
-            + self.price_new_tree_ds_2
+            self.price_new_tree_ds_1 - 2 * self.base_price + self.price_new_tree_ds_2
         ) / (ds**2)
 
         return gamma
@@ -166,22 +144,19 @@ class EmpiricalGreeks:
         neg_dv = -self.var_v
 
         # calculation of the Trees that we will use
-        new_tree_1 = self._price_tree_shock("volatility", dv)
-        new_tree_2 = self._price_tree_shock("volatility", neg_dv)
-
-        if new_tree_1.option_price is None or new_tree_2.option_price is None:
-            raise ValueError("Option price not calculated")
+        price_1 = self._price_tree_shock("volatility", dv)
+        price_2 = self._price_tree_shock("volatility", neg_dv)
 
         # Centered finite difference
-        vega = (new_tree_1.option_price - new_tree_2.option_price) / 2 * dv * 100
+        vega = (price_1 - price_2) / 2 * dv * 100
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "vol_new_tree_dv_1"):
-            self.vol_new_tree_ds_1 = new_tree_1.option_price
+            self.vol_new_tree_ds_1 = price_1
 
         # same here
         if not hasattr(self, "vol_new_tree_dv_2"):
-            self.vol_new_tree_ds_2 = new_tree_2.option_price
+            self.vol_new_tree_ds_2 = price_2
 
         return vega
 
@@ -196,17 +171,14 @@ class EmpiricalGreeks:
         d_t = self.tree.option.pricing_date + dt.timedelta(days=self.var_t)
 
         # New Tree priced at the date determined above
-        new_tree_1 = self._price_tree_shock("pricing_date", d_t)
-
-        if new_tree_1.option_price is None or self.tree.option_price is None:
-            raise ValueError("Option price not calculated")
+        price_1 = self._price_tree_shock("pricing_date", d_t)
 
         # calculation of theta via forward finite difference.
-        theta = new_tree_1.option_price - self.tree.option_price
+        theta = price_1 - self.base_price
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "time_new_tree_dt_1"):
-            self.theta_new_tree_ds_1 = new_tree_1.option_price
+            self.theta_new_tree_ds_1 = price_1
 
         return theta
 
@@ -221,21 +193,18 @@ class EmpiricalGreeks:
         neg_dr = -self.var_r
 
         # The new Trees that we will use in the finite difference
-        new_tree_1 = self._price_tree_shock("interest_rate", dr)
-        new_tree_2 = self._price_tree_shock("interest_rate", neg_dr)
-
-        if new_tree_1.option_price is None or new_tree_2.option_price is None:
-            raise ValueError("Option price not calculated")
+        price_1 = self._price_tree_shock("interest_rate", dr)
+        price_2 = self._price_tree_shock("interest_rate", neg_dr)
 
         # Calculation of rho via centered finite difference
-        rho = (new_tree_1.option_price - new_tree_2.option_price) / 2 * dr * 100
+        rho = (price_1 - price_2) / 2 * dr * 100
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "vol_new_tree_dr_1"):
-            self.rho_new_tree_ds_1 = new_tree_1.option_price
+            self.rho_new_tree_ds_1 = price_1
 
         # same here
         if not hasattr(self, "vol_new_tree_dr_2"):
-            self.rho_new_tree_ds_2 = new_tree_2.option_price
+            self.rho_new_tree_ds_2 = price_2
 
         return rho
