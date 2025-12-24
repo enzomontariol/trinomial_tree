@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from src.pricing.pricer import Pricer
 from src.pricing.market import MarketData
@@ -298,3 +299,96 @@ class InductiveTree(Pricer):
             )
 
         return current_values[0]
+
+    def get_terminal_distribution(self) -> pd.DataFrame:
+        """
+        Calculates the probability distribution of spot prices at maturity.
+        Performs a forward induction to compute probabilities.
+        """
+        # 1. Build Transition Probabilities
+        probs = self._build_probabilities_matrix()
+        p_u, p_m, p_d = probs[0], probs[1], probs[2]
+
+        # 2. Initialize Probabilities at t=0
+        # We start with probability 1.0 at the single root node
+        current_probs = np.array([1.0])
+
+        # 3. Forward Induction
+        for step in range(self.num_steps):
+            # The next layer has 2 more nodes than the current layer
+            next_probs = np.zeros(len(current_probs) + 2)
+
+            # Vectorized probability propagation
+            # Up moves: index i -> i
+            next_probs[:-2] += current_probs * p_u
+            # Mid moves: index i -> i+1
+            next_probs[1:-1] += current_probs * p_m
+            # Down moves: index i -> i+2
+            next_probs[2:] += current_probs * p_d
+
+            current_probs = next_probs
+
+        # 4. Get Spot Prices at Maturity
+        spots = self._get_spots_at_step(self.num_steps)
+
+        # 5. Return DataFrame
+        return pd.DataFrame({"Spot": spots, "Probability": current_probs})
+
+    def get_exercise_boundary(self) -> pd.DataFrame:
+        """
+        Extracts the early exercise boundary for American options.
+        Returns the spot price threshold where exercise becomes optimal at each step.
+        """
+        if not self.option.is_american:
+            return pd.DataFrame()
+
+        probs = self._build_probabilities_matrix()
+        p_u, p_m, p_d = probs[0], probs[1], probs[2]
+
+        # Initialize at maturity
+        current_spots = self._get_spots_at_step(self.num_steps)
+        current_values = self._calculate_intrinsic_value(current_spots)
+        current_values = self._apply_barrier_conditions(current_values, current_spots)
+
+        boundary_data = []
+
+        # Backward induction
+        for step in range(self.num_steps - 1, -1, -1):
+            next_values = current_values
+            current_spots = self._get_spots_at_step(step)
+
+            V_up = next_values[:-2]
+            V_mid = next_values[1:-1]
+            V_down = next_values[2:]
+
+            continuation_value = self.discount_factor * (
+                p_u * V_up + p_m * V_mid + p_d * V_down
+            )
+
+            intrinsic_value = self._calculate_intrinsic_value(current_spots)
+
+            # Determine Exercise Decision
+            # Exercise if Intrinsic > Continuation + epsilon
+            exercise_mask = intrinsic_value > continuation_value + 1e-9
+
+            # Find the boundary
+            boundary_spot = None
+            if np.any(exercise_mask):
+                exercised_spots = current_spots[exercise_mask]
+                if not self.option.is_call:  # Put
+                    boundary_spot = np.max(exercised_spots)
+                else:  # Call (usually dividend related)
+                    boundary_spot = np.min(exercised_spots)
+
+            if boundary_spot is not None:
+                # Calculate time in years
+                t = step * self.delta_t
+                boundary_data.append(
+                    {"Step": step, "Time": t, "Boundary_Spot": boundary_spot}
+                )
+
+            # Update values for next iteration
+            current_values = np.maximum(continuation_value, intrinsic_value)
+            current_values = self._apply_barrier_conditions(current_values, current_spots)
+
+        return pd.DataFrame(boundary_data).sort_values("Step")

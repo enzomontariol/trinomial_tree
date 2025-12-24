@@ -21,17 +21,17 @@ class ExerciseBoundaryExperiment(Experiment):
         self.N = N
 
     def run(self) -> pd.DataFrame:
-        # tree = InductiveTree(num_steps=self.N, market_data=self.market_data, option=self.option)
-        # tree.price()
-
-        # inspector = TreeInspector(tree)
-        # boundary_df = inspector.get_early_exercise_boundary()
-        # boundary_df["N"] = self.N
-        # return boundary_df
-        print(
-            "Warning: ExerciseBoundaryExperiment is not supported with InductiveTree yet."
+        tree = InductiveTree(
+            num_steps=self.N, market_data=self.market_data, option=self.option
         )
-        return pd.DataFrame()
+
+        if hasattr(tree, "get_exercise_boundary"):
+            boundary_df = tree.get_exercise_boundary()
+            boundary_df["N"] = self.N
+            return boundary_df
+        else:
+            print("Error: InductiveTree does not support exercise boundary extraction.")
+            return pd.DataFrame()
 
 
 class TerminalDistributionExperiment(Experiment):
@@ -46,17 +46,17 @@ class TerminalDistributionExperiment(Experiment):
         self.N = N
 
     def run(self) -> pd.DataFrame:
-        # tree = InductiveTree(num_steps=self.N, market_data=self.market_data, option=self.option)
-        # tree.price()
-
-        # inspector = TreeInspector(tree)
-        # dist_df = inspector.get_terminal_distribution()
-        # dist_df["N"] = self.N
-
-        print(
-            "Warning: TerminalDistributionExperiment is not supported with InductiveTree yet."
+        tree = InductiveTree(
+            num_steps=self.N, market_data=self.market_data, option=self.option
         )
-        return pd.DataFrame()
+
+        if hasattr(tree, "get_terminal_distribution"):
+            dist_df = tree.get_terminal_distribution()
+            dist_df["N"] = self.N
+            return dist_df
+        else:
+            print("Error: InductiveTree does not support terminal distribution.")
+            return pd.DataFrame()
 
         # Calculate Theoretical Lognormal PDF
         # ... (omitted)
