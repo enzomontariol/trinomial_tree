@@ -51,11 +51,42 @@ class InductiveTree(Pricer):
         self.market_data = market_data
         self.option = option
         self.config = config
+
+        self._validate_inputs()
+
         self.delta_t = self._calculate_delta_t()
         self.capitalization_factor = self._calculate_capitalization_factor()
         self.discount_factor = self._calculate_discount_factor()
         self.div_position = self._calculate_div_position()
         self.alpha = self._calculate_alpha()
+
+        self._validate_probabilities()
+
+    def _validate_inputs(self) -> None:
+        """Validates the input parameters for the tree."""
+        if self.num_steps <= 10:
+            raise ValueError("Number of steps must be greater than 10 for accuracy.")
+        if self.market_data.volatility <= 0:
+            raise ValueError("Volatility must be positive.")
+        if self.market_data.spot_price <= 0:
+            raise ValueError("Spot price must be positive.")
+        if self.option.strike_price <= 0:
+            raise ValueError("Strike price must be positive.")
+        if self.option.maturity <= self.option.pricing_date:
+            raise ValueError("Maturity date must be after pricing date.")
+
+    def _validate_probabilities(self) -> None:
+        """Validates that the transition probabilities are within [0, 1]."""
+        probs = self._build_probabilities_matrix()
+        if np.any(probs < 0) or np.any(probs > 1):
+            raise ValueError(
+                f"Transition probabilities out of bounds: {probs}. "
+                "Try increasing num_steps or adjusting volatility."
+            )
+        if not np.isclose(np.sum(probs), 1.0):
+            raise ValueError(
+                f"Transition probabilities do not sum to 1: {np.sum(probs)}"
+            )
 
     def get_time_to_maturity(self) -> float:
         """Returns the time to maturity expressed in number of years.
@@ -63,9 +94,11 @@ class InductiveTree(Pricer):
         Returns:
             float: time to maturity in number of years
         """
-        return (
-            self.option.maturity - self.option.pricing_date
-        ).days / self.option.calendar_base_convention
+        # Use 365.25 for ACT/365.25 or similar if needed, but here we stick to the convention
+        # defined in the option object, usually 360 or 365.
+        # We use (date - date).days which is ACT/Convention.
+        days_diff = (self.option.maturity - self.option.pricing_date).days
+        return days_diff / self.option.calendar_base_convention
 
     def _calculate_delta_t(self) -> float:
         """Calculates the reference time interval that will be used in our model.
