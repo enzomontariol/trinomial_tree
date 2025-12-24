@@ -17,3 +17,9 @@ class BarrierType(Enum):
 class BarrierDirection(Enum):
     up = "Up"
     down = "Down"
+
+
+class OptionPayoffType(Enum):
+    vanilla = "Vanilla"
+    digital = "Digital"
+    asset_or_nothing = "AssetOrNothing"

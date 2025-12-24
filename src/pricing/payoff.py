@@ -80,3 +80,49 @@ class BarrierPayoff(PayoffStrategy):
             option_values[breached] = 0.0
 
         return option_values
+
+
+class DigitalPayoff(PayoffStrategy):
+    """
+    Digital (Binary) Option Payoff (Cash-or-Nothing).
+    Pays 1.0 unit of currency if the option ends In-The-Money.
+    """
+
+    def calculate_intrinsic_value(
+        self, spots: np.ndarray, option: Option
+    ) -> np.ndarray:
+        if option.is_call:
+            # Pays 1.0 if S > K
+            return np.where(spots > option.strike_price, 1.0, 0.0)
+        else:
+            # Pays 1.0 if S < K
+            return np.where(spots < option.strike_price, 1.0, 0.0)
+
+    def apply_conditions(
+        self, option_values: np.ndarray, spots: np.ndarray, option: Option
+    ) -> np.ndarray:
+        # Digital options can also have barriers, but for this basic strategy
+        # we assume standard Digital.
+        return option_values
+
+
+class AssetOrNothingPayoff(PayoffStrategy):
+    """
+    Asset-or-Nothing Option Payoff.
+    Pays the asset price S if the option ends In-The-Money.
+    """
+
+    def calculate_intrinsic_value(
+        self, spots: np.ndarray, option: Option
+    ) -> np.ndarray:
+        if option.is_call:
+            # Pays S if S > K
+            return np.where(spots > option.strike_price, spots, 0.0)
+        else:
+            # Pays S if S < K
+            return np.where(spots < option.strike_price, spots, 0.0)
+
+    def apply_conditions(
+        self, option_values: np.ndarray, spots: np.ndarray, option: Option
+    ) -> np.ndarray:
+        return option_values

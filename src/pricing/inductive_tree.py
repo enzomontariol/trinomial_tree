@@ -5,9 +5,15 @@ from src.pricing.pricer import Pricer
 from src.pricing.market import MarketData
 from src.pricing.option import Option
 from src.pricing.config import PricingConfig
-from src.pricing.enums import BarrierType
+from src.pricing.enums import BarrierType, BarrierDirection, OptionPayoffType
 from src.pricing.barrier import Barrier
-from src.pricing.payoff import PayoffStrategy, VanillaPayoff, BarrierPayoff
+from src.pricing.payoff import (
+    PayoffStrategy,
+    VanillaPayoff,
+    BarrierPayoff,
+    DigitalPayoff,
+    AssetOrNothingPayoff,
+)
 
 
 class InductiveTree(Pricer):
@@ -159,6 +165,12 @@ class InductiveTree(Pricer):
         """Factory method to select the correct payoff strategy."""
         if self.option.barrier is not None:
             return BarrierPayoff()
+
+        if self.option.payoff_type == OptionPayoffType.digital:
+            return DigitalPayoff()
+        elif self.option.payoff_type == OptionPayoffType.asset_or_nothing:
+            return AssetOrNothingPayoff()
+
         return VanillaPayoff()
 
     def _calculate_dividend_pv(self, step: int) -> float:
