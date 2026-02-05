@@ -1,17 +1,39 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "trinomial-tree"
 version = "0.1.0"
-description = "Add your description here"
+description = "Recombining trinomial tree pricer for equity options (vanilla, digitals, barriers) with discrete dividend support."
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.3.3",
     "plotly>=6.5.0",
     "scipy>=1.16.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/enzomontariol/trinomial_tree"
+
+[project.license]
+file = "LICENCE.md"
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pytest-xdist>=3.8.0",
+    "ruff>=0.9.0",
+    "mypy>=1.8.0",
+    "ipykernel>=6.29.0",
+    "matplotlib>=3.8.0",
+    "nbformat>=5.9.0",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
