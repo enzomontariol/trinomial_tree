@@ -1,10 +1,10 @@
 import time
 from typing import Any, Dict, List
-from src.analysis.experiments.framework import ParallelSweepExperiment
-from src.pricing.market import MarketData
-from src.pricing.option import Option
-from src.pricing.black_scholes import BlackScholes
-from src.pricing.inductive_tree import InductiveTree
+from .framework import ParallelSweepExperiment
+from ...pricing.market import MarketData
+from ...pricing.option import Option
+from ...pricing.black_scholes import BlackScholes
+from ...pricing.inductive_tree import InductiveTree
 
 
 class ConvergenceExperiment(ParallelSweepExperiment):

@@ -1,7 +1,7 @@
 import pytest
 import datetime as dt
 import numpy as np
-from src.pricing import MarketData, Option, InductiveTree
+from trinomial_tree.pricing import MarketData, Option, InductiveTree
 
 
 class TestEdgeCases:

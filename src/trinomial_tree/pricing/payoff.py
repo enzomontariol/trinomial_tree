@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 import numpy as np
-from src.pricing.option import Option
-from src.pricing.enums import BarrierType, BarrierDirection
+
+from .option import Option
+from .enums import BarrierType, BarrierDirection
 
 
 class PayoffStrategy(ABC):
@@ -126,3 +127,4 @@ class AssetOrNothingPayoff(PayoffStrategy):
         self, option_values: np.ndarray, spots: np.ndarray, option: Option
     ) -> np.ndarray:
         return option_values
+

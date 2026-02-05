@@ -1,7 +1,7 @@
-from src.analysis.experiments.framework import Experiment
-from src.pricing.market import MarketData
-from src.pricing.option import Option
-from src.pricing.inductive_tree import InductiveTree
+from .framework import Experiment
+from ...pricing.market import MarketData
+from ...pricing.option import Option
+from ...pricing.inductive_tree import InductiveTree
 
 import pandas as pd
 import numpy as np

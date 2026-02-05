@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.stats import norm
 
-from src.pricing.pricer import Pricer
-from src.pricing.market import MarketData
-from src.pricing.option import Option
+from .pricer import Pricer
+from .market import MarketData
+from .option import Option
 
 
 class BlackScholes(Pricer):
@@ -98,3 +98,4 @@ class BlackScholes(Pricer):
             )
 
         return rho / 100
+

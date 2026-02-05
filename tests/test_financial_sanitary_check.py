@@ -3,8 +3,8 @@ from typing import Any
 import pytest
 import numpy as np
 
-from src.pricing import MarketData, Option, InductiveTree, Barrier
-from src.pricing.enums import BarrierType, BarrierDirection
+from trinomial_tree.pricing import MarketData, Option, InductiveTree, Barrier
+from trinomial_tree.pricing.enums import BarrierType, BarrierDirection
 
 
 class TestSensitivityMonotony:

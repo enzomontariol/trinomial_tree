@@ -2,7 +2,7 @@ from typing import Union
 import datetime as dt
 import copy
 
-from src.pricing.inductive_tree import InductiveTree
+from trinomial_tree.pricing.inductive_tree import InductiveTree
 
 
 class EmpiricalGreeks:
@@ -198,6 +198,7 @@ class EmpiricalGreeks:
 
         # Calculation of rho via centered finite difference
         rho = (price_1 - price_2) / 2 * dr * 100
+
 
         # we store in the class the value of the shocked Tree so as not to have to recalculate if we calculate a second order derivative
         if not hasattr(self, "vol_new_tree_dr_1"):

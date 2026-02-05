@@ -3,11 +3,11 @@ from __future__ import annotations
 import copy
 import numpy as np
 
-from src.pricing.market import MarketData
-from src.pricing.option import Option
-from src.pricing.enums import BarrierType, BarrierDirection
-from src.pricing.pricer import Pricer
-from src.pricing.config import PricingConfig
+from .market import MarketData
+from .option import Option
+from .enums import BarrierType, BarrierDirection
+from .pricer import Pricer
+from .config import PricingConfig
 
 
 class Tree(Pricer):

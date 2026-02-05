@@ -1,13 +1,13 @@
 import numpy as np
 import pandas as pd
 
-from src.pricing.pricer import Pricer
-from src.pricing.market import MarketData
-from src.pricing.option import Option
-from src.pricing.config import PricingConfig
-from src.pricing.enums import BarrierType, BarrierDirection, OptionPayoffType
-from src.pricing.barrier import Barrier
-from src.pricing.payoff import (
+from .pricer import Pricer
+from .market import MarketData
+from .option import Option
+from .config import PricingConfig
+from .enums import BarrierType, BarrierDirection, OptionPayoffType
+from .barrier import Barrier
+from .payoff import (
     PayoffStrategy,
     VanillaPayoff,
     BarrierPayoff,
@@ -417,3 +417,4 @@ class InductiveTree(Pricer):
             )
 
         return pd.DataFrame(boundary_data).sort_values("Step")
+

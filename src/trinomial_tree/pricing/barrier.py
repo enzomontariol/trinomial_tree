@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from src.pricing.enums import BarrierType, BarrierDirection
+from .enums import BarrierType, BarrierDirection
 
 
 @dataclass
@@ -16,3 +16,4 @@ class Barrier:
         self.barrier_level = barrier_level
         self.barrier_type = barrier_type
         self.barrier_direction = barrier_direction
+

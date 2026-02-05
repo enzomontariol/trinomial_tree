@@ -3,8 +3,8 @@ from typing import Any
 import pytest
 import numpy as np
 
-from src.pricing import MarketData, Option, InductiveTree
-from src.pricing.enums import OptionPayoffType
+from trinomial_tree.pricing import MarketData, Option, InductiveTree
+from trinomial_tree.pricing.enums import OptionPayoffType
 
 
 class TestExoticPayoffs:

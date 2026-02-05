@@ -1,8 +1,8 @@
 import datetime as dt
 from dataclasses import dataclass
 
-from src.pricing.barrier import Barrier
-from src.pricing.enums import CalendarBaseConvention, OptionPayoffType
+from .barrier import Barrier
+from .enums import CalendarBaseConvention, OptionPayoffType
 
 
 @dataclass
@@ -17,3 +17,4 @@ class Option:
     pricing_date: dt.date = dt.date.today()
     calendar_base_convention: int = CalendarBaseConvention._365.value
     payoff_type: OptionPayoffType = OptionPayoffType.vanilla
+

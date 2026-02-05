@@ -1,7 +1,7 @@
 import pytest
 import time
 import datetime as dt
-from src.pricing import MarketData, Option, InductiveTree, BlackScholes
+from trinomial_tree.pricing import MarketData, Option, InductiveTree, BlackScholes
 
 
 class TestPerformance:

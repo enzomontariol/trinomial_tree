@@ -2,12 +2,12 @@ import pytest
 import numpy as np
 import datetime as dt
 
-from src.pricing.market import MarketData
-from src.pricing.option import Option
-from src.pricing.barrier import Barrier
-from src.pricing.enums import BarrierType, BarrierDirection
-from src.pricing.inductive_tree import InductiveTree
-from src.pricing.black_scholes import BlackScholes
+from trinomial_tree.pricing.market import MarketData
+from trinomial_tree.pricing.option import Option
+from trinomial_tree.pricing.barrier import Barrier
+from trinomial_tree.pricing.enums import BarrierType, BarrierDirection
+from trinomial_tree.pricing.inductive_tree import InductiveTree
+from trinomial_tree.pricing.black_scholes import BlackScholes
 
 
 def get_bs_price(S, K, T, r, sigma):
