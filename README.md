@@ -1,5 +1,5 @@
 
-# Trinomial Tree Pricer (Equity / Equity Options)
+# Trinomial Tree Pricer
 
 Pricing and diagnostics for vanilla and selected exotics using a **recombining trinomial tree** with:
 
@@ -27,7 +27,7 @@ This repository is intentionally “quant-first”: correctness, numerical stabi
 
 ## Installation
 
-This project is managed with `uv` and uses a standard `src/` layout (import root: `trinomial_tree`).
+This project is managed with `uv` (see [this page](https://docs.astral.sh/uv/getting-started/installation/) for installation) and uses a standard `src/` layout (import root: `trinomial_tree`).
 
 ### Option A: Install into an existing uv project (recommended)
 
@@ -35,7 +35,7 @@ From GitHub:
 
 - `uv add "trinomial-tree @ git+https://github.com/enzomontariol/trinomial_tree.git"`
 
-### Option B: Local development install (editable)
+### Option B: Local development install (editable) (required to run the notebook)
 
 Clone the repo, then from the repository root:
 
