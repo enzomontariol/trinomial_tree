@@ -4,5 +4,15 @@ from src.pricing.option import Option
 from src.pricing.black_scholes import BlackScholes
 from src.pricing.barrier import Barrier
 from src.pricing.inductive_tree import InductiveTree
+from src.pricing.enums import BarrierType, BarrierDirection
 
-__all__ = ["MarketData", "Option", "Tree", "BlackScholes", "Barrier", "InductiveTree"]
+__all__ = [
+    "MarketData",
+    "Option",
+    "Tree",
+    "BlackScholes",
+    "Barrier",
+    "InductiveTree",
+    "BarrierType",
+    "BarrierDirection",
+]
