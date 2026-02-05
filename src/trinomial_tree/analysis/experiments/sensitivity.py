@@ -1,4 +1,3 @@
-import time
 from typing import Any, Dict, List
 from .framework import ParallelSweepExperiment
 from ...pricing.market import MarketData

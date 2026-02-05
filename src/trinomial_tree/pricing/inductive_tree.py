@@ -5,7 +5,7 @@ from .pricer import Pricer
 from .market import MarketData
 from .option import Option
 from .config import PricingConfig
-from .enums import BarrierType, BarrierDirection, OptionPayoffType
+from .enums import BarrierType, OptionPayoffType
 from .barrier import Barrier
 from .payoff import (
     PayoffStrategy,

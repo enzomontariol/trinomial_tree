@@ -1,6 +1,5 @@
 import datetime as dt
 from typing import Any
-import pytest
 import numpy as np
 
 from trinomial_tree.pricing import MarketData, Option, InductiveTree
