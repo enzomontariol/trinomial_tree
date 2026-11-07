@@ -1,8 +1,9 @@
 import datetime as dt
 from typing import Any
+
 import numpy as np
 
-from trinomial_tree.pricing import MarketData, Option, InductiveTree
+from trinomial_tree.pricing import InductiveTree, MarketData, Option
 from trinomial_tree.pricing.enums import OptionPayoffType
 
 

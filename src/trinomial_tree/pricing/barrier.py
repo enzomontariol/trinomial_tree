@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .enums import BarrierType, BarrierDirection
+from .enums import BarrierDirection, BarrierType
 
 
 @dataclass

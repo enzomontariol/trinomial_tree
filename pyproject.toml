@@ -18,7 +18,7 @@ dependencies = [
 Homepage = "https://github.com/enzomontariol/trinomial_tree"
 
 [project.license]
-file = "LICENCE.md"
+file = "LICENSE.md"
 
 [dependency-groups]
 dev = [
@@ -36,4 +36,37 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+# Pinned explicitly so a new ruff release cannot silently change what CI
+# enforces. Without this the run depends on whatever the installed ruff
+# happens to default to.
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Deliberately the set that was already being enforced before this config
+# existed. E501 and the PLR complexity rules are left out: they fire ~50 times
+# on the existing code and reformatting it is a separate decision, not a
+# CI fix.
+select = [
+    "E4", "E7", "E9",  # pycodestyle (not E501 line-length)
+    "F",               # pyflakes
+    "I",               # import sorting
+    "UP",              # pyupgrade
+    "B",               # bugbear
+    "C4",              # comprehensions
+    "SIM",             # simplify
+    "PIE",             # misc lints
+    "BLE",             # blind except
+    "PLC", "PLE", "PLW",  # pylint (not PLR refactor/complexity)
+    "RUF",             # ruff-specific
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Benchmarks in the showcase deliberately swallow failures so one bad run
+# does not kill the whole sweep.
+"trinomial_tree_showcase.ipynb" = ["BLE001"]
+# Tests use magic numbers and long asserts by design.
+"tests/**" = ["PLR2004"]
 

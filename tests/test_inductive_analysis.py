@@ -1,9 +1,11 @@
-import pytest
-import numpy as np
 import datetime as dt
+
+import numpy as np
+import pytest
+
+from trinomial_tree.pricing.inductive_tree import InductiveTree
 from trinomial_tree.pricing.market import MarketData
 from trinomial_tree.pricing.option import Option
-from trinomial_tree.pricing.inductive_tree import InductiveTree
 
 
 class TestInductiveAnalysis:

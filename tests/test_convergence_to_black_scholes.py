@@ -1,8 +1,9 @@
 import datetime as dt
+
 import pytest
 
-from trinomial_tree.pricing import BlackScholes, MarketData, Option, InductiveTree
 from trinomial_tree.analysis import EmpiricalGreeks
+from trinomial_tree.pricing import BlackScholes, InductiveTree, MarketData, Option
 
 
 class TestPriceConvergenceToBlackScholes:

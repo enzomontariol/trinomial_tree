@@ -1,10 +1,10 @@
-from .framework import Experiment
+import numpy as np
+import pandas as pd
+
+from ...pricing.inductive_tree import InductiveTree
 from ...pricing.market import MarketData
 from ...pricing.option import Option
-from ...pricing.inductive_tree import InductiveTree
-
-import pandas as pd
-import numpy as np
+from .framework import Experiment
 
 
 class ExerciseBoundaryExperiment(Experiment):

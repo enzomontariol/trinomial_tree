@@ -1,9 +1,9 @@
 import numpy as np
 from scipy.stats import norm
 
-from .pricer import Pricer
 from .market import MarketData
 from .option import Option
+from .pricer import Pricer
 
 
 class BlackScholes(Pricer):

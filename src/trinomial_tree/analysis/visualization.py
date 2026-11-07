@@ -1,5 +1,5 @@
-import plotly.graph_objects as go
 import pandas as pd
+import plotly.graph_objects as go
 
 
 class Visualizer:
@@ -70,7 +70,7 @@ class Visualizer:
                     y=df["BS_Price"],
                     mode="lines",
                     name="BS Price",
-                    line=dict(dash="dash"),
+                    line={"dash": "dash"},
                 )
             )
         fig.update_layout(
@@ -80,7 +80,7 @@ class Visualizer:
 
     @staticmethod
     def plot_greeks_vs_spot(
-        df: pd.DataFrame, greek: str, title: str = None
+        df: pd.DataFrame, greek: str, title: str | None = None
     ) -> go.Figure:
         if title is None:
             title = f"{greek} vs Spot Price"
@@ -103,7 +103,7 @@ class Visualizer:
                     y=df["Tree_Gamma_Internal"],
                     mode="lines",
                     name="Tree Gamma (Internal)",
-                    line=dict(dash="dot"),
+                    line={"dash": "dot"},
                 )
             )
 
@@ -114,7 +114,7 @@ class Visualizer:
                     y=df[bs_col],
                     mode="lines",
                     name=f"BS {greek}",
-                    line=dict(dash="dash"),
+                    line={"dash": "dash"},
                 )
             )
 
@@ -138,7 +138,7 @@ class Visualizer:
                     y=df["BS_Price"],
                     mode="lines",
                     name="BS Price",
-                    line=dict(dash="dash"),
+                    line={"dash": "dash"},
                 )
             )
         fig.update_layout(title=title, xaxis_title="Volatility", yaxis_title="Price")
@@ -220,7 +220,7 @@ class Visualizer:
             )
 
             fig.update_layout(
-                yaxis2=dict(title="PDF Density", overlaying="y", side="right")
+                yaxis2={"title": "PDF Density", "overlaying": "y", "side": "right"}
             )
 
         fig.update_layout(

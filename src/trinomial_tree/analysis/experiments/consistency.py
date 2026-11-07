@@ -1,9 +1,11 @@
+from typing import Any
+
 import numpy as np
-from typing import Any, Dict, List
-from .framework import ParallelSweepExperiment
+
+from ...pricing.inductive_tree import InductiveTree
 from ...pricing.market import MarketData
 from ...pricing.option import Option
-from ...pricing.inductive_tree import InductiveTree
+from .framework import ParallelSweepExperiment
 
 
 class PutCallParityExperiment(ParallelSweepExperiment):
@@ -16,7 +18,7 @@ class PutCallParityExperiment(ParallelSweepExperiment):
     def __init__(
         self,
         sweep_param: str,  # "S0" or "N"
-        param_values: List[Any],
+        param_values: list[Any],
         market_data: MarketData,
         base_option: Option,
         fixed_N: int = 100,
@@ -33,7 +35,7 @@ class PutCallParityExperiment(ParallelSweepExperiment):
         self.fixed_N = fixed_N
         self.sweep_param = sweep_param
 
-    def _run_single_iteration(self, value: Any) -> Dict[str, Any]:
+    def _run_single_iteration(self, value: Any) -> dict[str, Any]:
         # Configure Market and Option based on sweep parameter
         if self.sweep_param == "S0":
             S0 = value

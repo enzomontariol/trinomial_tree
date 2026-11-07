@@ -1,19 +1,19 @@
 import numpy as np
 import pandas as pd
 
-from .pricer import Pricer
-from .market import MarketData
-from .option import Option
+from .barrier import Barrier
 from .config import PricingConfig
 from .enums import BarrierType, OptionPayoffType
-from .barrier import Barrier
+from .market import MarketData
+from .option import Option
 from .payoff import (
-    PayoffStrategy,
-    VanillaPayoff,
+    AssetOrNothingPayoff,
     BarrierPayoff,
     DigitalPayoff,
-    AssetOrNothingPayoff,
+    PayoffStrategy,
+    VanillaPayoff,
 )
+from .pricer import Pricer
 
 
 class InductiveTree(Pricer):
@@ -44,7 +44,7 @@ class InductiveTree(Pricer):
         num_steps: int,
         market_data: MarketData,
         option: Option,
-        config: PricingConfig = PricingConfig(),
+        config: PricingConfig | None = None,
     ) -> None:
         """Initialization of the class
 
@@ -52,12 +52,15 @@ class InductiveTree(Pricer):
             num_steps (int): The number of steps in our model
             market_data (MarketData): Class used to represen market data.
             option (Option): Class used to represent an option and its parameters.
-            config (PricingConfig, optional): Configuration object. Defaults to PricingConfig().
+            config (PricingConfig, optional): Configuration object. Defaults to
+                a fresh PricingConfig() when omitted.
         """
         self.num_steps = num_steps
         self.market_data = market_data
         self.option = option
-        self.config = config
+        # Built per-instance: a PricingConfig() in the signature is evaluated
+        # once at import and would be shared by every InductiveTree.
+        self.config = config if config is not None else PricingConfig()
 
         self._validate_inputs()
 
@@ -331,7 +334,7 @@ class InductiveTree(Pricer):
         current_probs = np.array([1.0])
 
         # 3. Forward Induction
-        for step in range(self.num_steps):
+        for _step in range(self.num_steps):
             # The next layer has 2 more nodes than the current layer
             next_probs = np.zeros(len(current_probs) + 2)
 

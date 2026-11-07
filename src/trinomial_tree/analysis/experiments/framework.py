@@ -1,7 +1,8 @@
-from abc import ABC, abstractmethod
-import pandas as pd
 import concurrent.futures
-from typing import List, Dict, Any
+from abc import ABC, abstractmethod
+from typing import Any
+
+import pandas as pd
 
 
 class Experiment(ABC):
@@ -13,7 +14,6 @@ class Experiment(ABC):
     @abstractmethod
     def run(self) -> pd.DataFrame:
         """Runs the experiment and returns a DataFrame with results."""
-        pass
 
 
 class ParallelSweepExperiment(Experiment):
@@ -22,7 +22,7 @@ class ParallelSweepExperiment(Experiment):
     """
 
     def __init__(
-        self, name: str, param_name: str, param_values: List[Any], max_workers: int = 4
+        self, name: str, param_name: str, param_values: list[Any], max_workers: int = 4
     ):
         super().__init__(name)
         self.param_name = param_name
@@ -30,12 +30,11 @@ class ParallelSweepExperiment(Experiment):
         self.max_workers = max_workers
 
     @abstractmethod
-    def _run_single_iteration(self, value: Any) -> Dict[str, Any]:
+    def _run_single_iteration(self, value: Any) -> dict[str, Any]:
         """
         Run a single iteration for a given parameter value.
         Returns a dictionary of results (metrics).
         """
-        pass
 
     def run(self) -> pd.DataFrame:
         results = []
@@ -56,7 +55,7 @@ class ParallelSweepExperiment(Experiment):
                     if self.param_name not in res:
                         res[self.param_name] = val
                     results.append(res)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - one bad sweep point must not abort the whole experiment
                     print(
                         f"Experiment {self.name} failed for {self.param_name}={val}: {exc}"
                     )

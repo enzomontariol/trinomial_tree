@@ -1,7 +1,9 @@
-import pytest
-import time
 import datetime as dt
-from trinomial_tree.pricing import MarketData, Option, InductiveTree, BlackScholes
+import time
+
+import pytest
+
+from trinomial_tree.pricing import BlackScholes, InductiveTree, MarketData, Option
 
 
 class TestPerformance:

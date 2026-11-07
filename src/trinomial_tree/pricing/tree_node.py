@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import copy
+
 import numpy as np
 
+from .config import PricingConfig
+from .enums import BarrierDirection, BarrierType
 from .market import MarketData
 from .option import Option
-from .enums import BarrierType, BarrierDirection
 from .pricer import Pricer
-from .config import PricingConfig
 
 
 class Tree(Pricer):
@@ -16,7 +17,7 @@ class Tree(Pricer):
         num_steps: int,
         market_data: MarketData,
         option: Option,
-        config: PricingConfig = PricingConfig(),  # if none is provided, use defaults
+        config: PricingConfig | None = None,
     ) -> None:
         """Initialization of the class
 
@@ -24,13 +25,16 @@ class Tree(Pricer):
             num_steps (float): the number of steps in our model
             market_data (MarketData): Class used to represent market data.
             option (Option): Class used to represent an option and its parameters.
-            config (PricingConfig, optional): Configuration object.
+            config (PricingConfig, optional): Configuration object. Defaults to
+                a fresh PricingConfig() when omitted.
 
         """
         self.num_steps = num_steps
         self.market_data = market_data
         self.option = option
-        self.config = config
+        # Built per-instance: a PricingConfig() in the signature is evaluated
+        # once at import and would be shared by every Tree.
+        self.config = config if config is not None else PricingConfig()
         self.delta_t = self._calculate_delta_t()
         self.capitalization_factor = self._calculate_capitalization_factor()
         self.discount_factor = self._calculate_discount_factor()
@@ -174,7 +178,7 @@ class Tree(Pricer):
         current_center = self.root
 
         # We create the first block here. We will then iterate over as many steps as necessary to create the following columns.
-        for step in range(self.num_steps):
+        for _step in range(self.num_steps):
             current_center = _create_new_col(self, current_center)
 
     def price(self) -> float:
@@ -323,10 +327,7 @@ class Node:
         """
         condition_1 = self.spot_price * (1 + 1 / self.tree.alpha) / 2 <= forward
         condition_2 = forward <= self.spot_price * (1 + self.tree.alpha) / 2
-        if condition_1 and condition_2:
-            return True
-        else:
-            return False
+        return condition_1 and condition_2
 
     def next_down(self) -> Node:
         """Allows us to create the next down Node if it does not already exist.
@@ -365,10 +366,9 @@ class Node:
         """
         fw = self._calculate_forward()
 
-        if next_node._test_close_node(fw):
-            next_node = next_node
-
-        elif fw > next_node.spot_price:
+        # Both loops are guarded by "not close", so an already-close node walks
+        # zero steps either way; no separate early-return branch is needed.
+        if fw > next_node.spot_price:
             while not next_node._test_close_node(fw):
                 next_node = next_node.next_up()
 
@@ -489,7 +489,7 @@ class Node:
                     child_node.intrinsic_value = 0
                 else:
                     child_node = getattr(self, future_node_name)
-                    if getattr(child_node, "intrinsic_value") is None:
+                    if child_node.intrinsic_value is None:
                         child_node._calculate_intrinsic_value()
 
             if (
@@ -511,7 +511,7 @@ class Node:
                     self.future_center.intrinsic_value,
                     self.future_down.intrinsic_value,
                 ]
-            )  #
+            )
             intrinsic_value = self.tree.discount_factor * price_vector.dot(
                 proba_vector
             )  # here, scalar product of prices by their probabilities
@@ -530,9 +530,7 @@ class Node:
                 if (
                     self.tree.option.barrier.barrier_direction == BarrierDirection.up
                     and self.spot_price >= self.tree.option.barrier.barrier_level
-                ):
-                    is_breached = True
-                elif (
+                ) or (
                     self.tree.option.barrier.barrier_direction == BarrierDirection.down
                     and self.spot_price <= self.tree.option.barrier.barrier_level
                 ):

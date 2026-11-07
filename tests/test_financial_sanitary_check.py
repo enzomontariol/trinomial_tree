@@ -1,10 +1,11 @@
 import datetime as dt
 from typing import Any
-import pytest
-import numpy as np
 
-from trinomial_tree.pricing import MarketData, Option, InductiveTree, Barrier
-from trinomial_tree.pricing.enums import BarrierType, BarrierDirection
+import numpy as np
+import pytest
+
+from trinomial_tree.pricing import Barrier, InductiveTree, MarketData, Option
+from trinomial_tree.pricing.enums import BarrierDirection, BarrierType
 
 
 class TestSensitivityMonotony:

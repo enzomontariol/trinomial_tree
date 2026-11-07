@@ -1,12 +1,13 @@
-import numpy as np
 import datetime as dt
 
+import numpy as np
+
+from trinomial_tree.pricing.barrier import Barrier
+from trinomial_tree.pricing.black_scholes import BlackScholes
+from trinomial_tree.pricing.enums import BarrierDirection, BarrierType
+from trinomial_tree.pricing.inductive_tree import InductiveTree
 from trinomial_tree.pricing.market import MarketData
 from trinomial_tree.pricing.option import Option
-from trinomial_tree.pricing.barrier import Barrier
-from trinomial_tree.pricing.enums import BarrierType, BarrierDirection
-from trinomial_tree.pricing.inductive_tree import InductiveTree
-from trinomial_tree.pricing.black_scholes import BlackScholes
 
 
 def get_bs_price(S, K, T, r, sigma):
@@ -15,7 +16,7 @@ def get_bs_price(S, K, T, r, sigma):
     Assumes 365-day year convention consistent with the tests.
     """
     today = dt.date.today()
-    days_to_maturity = int(round(T * 365))
+    days_to_maturity = round(T * 365)
     maturity = today + dt.timedelta(days=days_to_maturity)
 
     market_data = MarketData(

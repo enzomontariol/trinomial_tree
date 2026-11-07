@@ -1,9 +1,10 @@
-from typing import Any, Dict, List
-from .framework import ParallelSweepExperiment
-from ...pricing.market import MarketData
-from ...pricing.option import Option
+from typing import Any
+
 from ...pricing.black_scholes import BlackScholes
 from ...pricing.inductive_tree import InductiveTree
+from ...pricing.market import MarketData
+from ...pricing.option import Option
+from .framework import ParallelSweepExperiment
 
 
 class SpotSensitivityExperiment(ParallelSweepExperiment):
@@ -17,7 +18,7 @@ class SpotSensitivityExperiment(ParallelSweepExperiment):
 
     def __init__(
         self,
-        S0_values: List[float],
+        S0_values: list[float],
         market_data: MarketData,
         option: Option,
         N: int,
@@ -33,7 +34,7 @@ class SpotSensitivityExperiment(ParallelSweepExperiment):
         self.option = option
         self.N = N
 
-    def _run_single_iteration(self, value: float) -> Dict[str, Any]:
+    def _run_single_iteration(self, value: float) -> dict[str, Any]:
         S0 = value
         # Create market data with new spot
         market_data = MarketData(
@@ -118,7 +119,7 @@ class VolatilitySensitivityExperiment(ParallelSweepExperiment):
 
     def __init__(
         self,
-        vol_values: List[float],
+        vol_values: list[float],
         market_data: MarketData,
         option: Option,
         N: int,
@@ -134,7 +135,7 @@ class VolatilitySensitivityExperiment(ParallelSweepExperiment):
         self.option = option
         self.N = N
 
-    def _run_single_iteration(self, value: float) -> Dict[str, Any]:
+    def _run_single_iteration(self, value: float) -> dict[str, Any]:
         vol = value
         market_data = MarketData(
             spot_price=self.base_market_data.spot_price,

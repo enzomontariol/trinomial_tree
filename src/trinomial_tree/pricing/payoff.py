@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
+
 import numpy as np
 
+from .enums import BarrierDirection, BarrierType
 from .option import Option
-from .enums import BarrierType, BarrierDirection
 
 
 class PayoffStrategy(ABC):
@@ -15,14 +16,12 @@ class PayoffStrategy(ABC):
         self, spots: np.ndarray, option: Option
     ) -> np.ndarray:
         """Calculates the intrinsic value of the option."""
-        pass
 
     @abstractmethod
     def apply_conditions(
         self, option_values: np.ndarray, spots: np.ndarray, option: Option
     ) -> np.ndarray:
         """Applies specific conditions (e.g., barriers) to the option values."""
-        pass
 
 
 class VanillaPayoff(PayoffStrategy):

@@ -1,6 +1,5 @@
-from typing import Union
-import datetime as dt
 import copy
+import datetime as dt
 
 from trinomial_tree.pricing.inductive_tree import InductiveTree
 
@@ -33,7 +32,7 @@ class EmpiricalGreeks:
         self.base_price = self.tree.price()
 
     def _price_tree_shock(
-        self, attribute_to_modify: str, d: Union[float, dt.date]
+        self, attribute_to_modify: str, d: float | dt.date
     ) -> float:
         """Method allowing us to value a new option by varying a given parameter.
 
@@ -51,7 +50,7 @@ class EmpiricalGreeks:
         # Theta case
         if attribute_to_modify == "pricing_date":
             setattr(option_modified, attribute_to_modify, d)
-            setattr(market_data_modified, "start_date", d)
+            market_data_modified.start_date = d
 
         # Rho case
         elif (

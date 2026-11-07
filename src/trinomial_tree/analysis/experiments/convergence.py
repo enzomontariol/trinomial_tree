@@ -1,10 +1,11 @@
 import time
-from typing import Any, Dict, List
-from .framework import ParallelSweepExperiment
-from ...pricing.market import MarketData
-from ...pricing.option import Option
+from typing import Any
+
 from ...pricing.black_scholes import BlackScholes
 from ...pricing.inductive_tree import InductiveTree
+from ...pricing.market import MarketData
+from ...pricing.option import Option
+from .framework import ParallelSweepExperiment
 
 
 class ConvergenceExperiment(ParallelSweepExperiment):
@@ -18,7 +19,7 @@ class ConvergenceExperiment(ParallelSweepExperiment):
 
     def __init__(
         self,
-        N_values: List[int],
+        N_values: list[int],
         market_data: MarketData,
         option: Option,
         max_workers: int = 4,
@@ -36,7 +37,7 @@ class ConvergenceExperiment(ParallelSweepExperiment):
         bs_pricer = BlackScholes(market_data, option)
         self.bs_price = bs_pricer.price()
 
-    def _run_single_iteration(self, N: int) -> Dict[str, Any]:
+    def _run_single_iteration(self, N: int) -> dict[str, Any]:
         start_time = time.time()
 
         # Instantiate Tree with N steps
