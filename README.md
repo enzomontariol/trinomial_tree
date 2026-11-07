@@ -291,7 +291,7 @@ The test suite includes convergence checks vs Black–Scholes, barrier validatio
 
 ## License
 
-See [LICENCE.md](LICENCE.md).
+See [LICENSE.md](LICENSE.md).
 
 ## Disclaimer
 
